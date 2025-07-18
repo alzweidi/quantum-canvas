@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quantum Simulator - Prototype</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #111; 
+            overflow: hidden; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+        }
+        canvas { 
+            display: block; 
+            box-shadow: 0 0 20px rgba(127, 255, 212, 0.5); 
+        }
+        #ui-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="sim-canvas" width="512" height="512"></canvas>
+    <div id="ui-panel">
+        <h3>Prototype Testing</h3>
+        <p>Check the console for test results</p>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/fft.js/lib/fft.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
+    <script src="prototype.js"></script>
+</body>
+</html>
