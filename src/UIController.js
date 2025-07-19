@@ -1,5 +1,3 @@
-import * as C from './constants.js';
-
 /**
  * UIController class - Handles all user interactions and updates the simulation state
  * Allows users to draw potential barriers by clicking and dragging on canvas
