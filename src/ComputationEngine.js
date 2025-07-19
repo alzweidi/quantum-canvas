@@ -2,41 +2,65 @@
 import * as C from './constants.js';
 
 // --- Self-Contained FFT Implementation ---
-// This is a standard, recursive Cooley-Tukey FFT.
+// Simplified iterative Cooley-Tukey FFT for power-of-2 sizes
 function fft(input) {
-    const n = input.length / 2;
-    if (n <= 1) return input;
+    const n = input.length / 2; // Number of complex numbers
+    if (n <= 1) return input.slice(); // Return copy for base case
 
-    const even = new Float32Array(n * 2);
-    const odd = new Float32Array(n * 2);
+    const output = input.slice(); // Copy input to output
+    
+    // Bit-reverse the array
     for (let i = 0; i < n; i++) {
-        even[i * 2] = input[i * 2];
-        even[i * 2 + 1] = input[i * 2 + 1];
-        odd[i * 2] = input[(i + n) * 2];
-        odd[i * 2 + 1] = input[(i + n) * 2 + 1];
+        let j = 0;
+        let temp = i;
+        for (let k = 0; k < Math.log2(n); k++) {
+            j = (j << 1) | (temp & 1);
+            temp >>= 1;
+        }
+        if (j > i) {
+            // Swap complex numbers at positions i and j
+            [output[i * 2], output[j * 2]] = [output[j * 2], output[i * 2]];
+            [output[i * 2 + 1], output[j * 2 + 1]] = [output[j * 2 + 1], output[i * 2 + 1]];
+        }
     }
     
-    const fftEven = fft(even.subarray(0, n));
-    const fftOdd = fft(odd.subarray(0, n));
-
-    const output = new Float32Array(2 * n);
-    for (let k = 0; k < n; k++) {
-        const angle = -Math.PI * k / n;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+    // Iterative FFT
+    for (let len = 2; len <= n; len *= 2) {
+        const angle = -2 * Math.PI / len;
+        const wlen_real = Math.cos(angle);
+        const wlen_imag = Math.sin(angle);
         
-        const odd_real = fftOdd[k * 2];
-        const odd_imag = fftOdd[k * 2 + 1];
-
-        const term_real = cos * odd_real - sin * odd_imag;
-        const term_imag = sin * odd_real + cos * odd_imag;
-        
-        output[k * 2] = fftEven[k * 2] + term_real;
-        output[k * 2 + 1] = fftEven[k * 2 + 1] + term_imag;
-        
-        output[(k + n) * 2] = fftEven[k * 2] - term_real;
-        output[(k + n) * 2 + 1] = fftEven[k * 2 + 1] - term_imag;
+        for (let i = 0; i < n; i += len) {
+            let w_real = 1;
+            let w_imag = 0;
+            
+            for (let j = 0; j < len / 2; j++) {
+                const u_idx = (i + j) * 2;
+                const v_idx = (i + j + len / 2) * 2;
+                
+                const u_real = output[u_idx];
+                const u_imag = output[u_idx + 1];
+                
+                const v_real = output[v_idx];
+                const v_imag = output[v_idx + 1];
+                
+                const v_w_real = v_real * w_real - v_imag * w_imag;
+                const v_w_imag = v_real * w_imag + v_imag * w_real;
+                
+                output[u_idx] = u_real + v_w_real;
+                output[u_idx + 1] = u_imag + v_w_imag;
+                
+                output[v_idx] = u_real - v_w_real;
+                output[v_idx + 1] = u_imag - v_w_imag;
+                
+                const next_w_real = w_real * wlen_real - w_imag * wlen_imag;
+                const next_w_imag = w_real * wlen_imag + w_imag * wlen_real;
+                w_real = next_w_real;
+                w_imag = next_w_imag;
+            }
+        }
     }
+    
     return output;
 }
 
