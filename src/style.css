@@ -1,0 +1,61 @@
+body { 
+    margin: 0; 
+    background-color: #111; 
+    overflow: hidden; 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+}
+canvas { 
+    display: block; 
+    box-shadow: 0 0 20px rgba(0, 255, 150, 0.5); 
+}
+#ui-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background-color: rgba(40, 40, 40, 0.85);
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    color: #eee;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    width: 240px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+h3 {
+    margin-top: 0;
+    text-align: center;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+    font-weight: 500;
+}
+.control-group {
+    margin-bottom: 15px;
+}
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+}
+button {
+    width: 100%;
+    margin-bottom: 5px;
+    padding: 10px 12px;
+    background-color: #3a3a3a;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+button:hover { 
+    background-color: #555; 
+}

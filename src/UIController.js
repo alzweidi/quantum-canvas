@@ -12,7 +12,7 @@ export class UIController {
         this.canvas = canvasElement;
         this.state = state;
         this.isDrawing = false;
-        this.brushSize = 3; // Radius of the drawing brush in grid units
+        this.brushSize = 5; // Radius of the drawing brush in grid units (matches HTML default)
 
         // Initial scaling - will be updated dynamically based on actual display size
         this.scaleX = 1.0;
@@ -22,7 +22,7 @@ export class UIController {
     }
 
     /**
-     * Set up mouse event listeners for drawing potential barriers
+     * Set up all event listeners for UI interactions
      * @private
      */
     _setupEventListeners() {
@@ -81,6 +81,33 @@ export class UIController {
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             this.isDrawing = false;
+        });
+
+        // UI Control buttons
+        const resetButton = document.getElementById('reset-button');
+        const clearButton = document.getElementById('clear-button');
+
+        resetButton.addEventListener('click', () => {
+            this.resetSimulation();
+        });
+
+        clearButton.addEventListener('click', () => {
+            this.clearWalls();
+        });
+
+        // Brush size slider
+        const brushSlider = document.getElementById('brush-slider');
+        const brushSizeValue = document.getElementById('brush-size-value');
+
+        brushSlider.addEventListener('input', (e) => {
+            const newSize = parseInt(e.target.value);
+            this.setBrushSize(newSize);
+            brushSizeValue.textContent = newSize;
+        });
+
+        // Window resize handler for responsive coordinate mapping
+        window.addEventListener('resize', () => {
+            this.updateScaling();
         });
     }
 
@@ -164,7 +191,7 @@ export class UIController {
      * @param {number} size - New brush size in grid units
      */
     setBrushSize(size) {
-        this.brushSize = Math.max(1, Math.min(10, size)); // Clamp between 1 and 10
+        this.brushSize = Math.max(1, Math.min(20, size)); // Clamp between 1 and 20
     }
 
     /**

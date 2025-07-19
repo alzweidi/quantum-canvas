@@ -24,23 +24,6 @@ const uiController = new UIController(canvas, state);
 uiController.updateScaling();
 
 /**
- * Set up event listeners for UI control buttons
- * @private
- */
-function setupUIControls() {
-    const resetButton = document.getElementById('reset-button');
-    const clearButton = document.getElementById('clear-button');
-
-    resetButton.addEventListener('click', () => {
-        uiController.resetSimulation();
-    });
-
-    clearButton.addEventListener('click', () => {
-        uiController.clearWalls();
-    });
-}
-
-/**
  * Main animation loop - advances simulation and renders each frame
  * Uses requestAnimationFrame for smooth 60+ FPS performance
  * @private
@@ -52,5 +35,4 @@ function gameLoop() {
 }
 
 // Initialize application
-setupUIControls();
 gameLoop();
