@@ -1,41 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Quantum Simulator - Prototype</title>
     <style>
-        body { 
-            margin: 0; 
-            background-color: #111; 
-            overflow: hidden; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-        }
-        canvas { 
-            display: block; 
-            box-shadow: 0 0 20px rgba(127, 255, 212, 0.5); 
-        }
-        #ui-panel {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
-        }
+      body {
+        margin: 0;
+        background-color: #111;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      canvas {
+        display: block;
+        box-shadow: 0 0 20px rgba(127, 255, 212, 0.5);
+      }
+      #ui-panel {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Quantum Simulator</h3>
-        <p>Click and drag to draw barriers</p>
-        <button id="reset-button">Reset Simulation</button>
-        <button id="clear-button">Clear Walls</button>
+      <h3>Quantum Simulator</h3>
+      <p>Click and drag to draw barriers</p>
+      <button id="reset-button">Reset Simulation</button>
+      <button id="clear-button">Clear Walls</button>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>
-</body>
+  </body>
 </html>

@@ -14,7 +14,7 @@ Adhere strictly to ES Modules (import/export). No circular dependencies.
 📖 Naming & Documentation
 Use clearly descriptive, camelCase names for functions and variables (function myExample()), and PascalCase for classes (class MyExample {}).
 
-Use JSDoc comment blocks (/** ... */) for every public function and class.
+Use JSDoc comment blocks (/\*_ ... _/) for every public function and class.
 
 ⚠️ Error Handling & Logging
 Wrap operations that can fail (e.g., WebGL extension checks) in try/catch blocks.
