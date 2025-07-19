@@ -5,6 +5,10 @@ import * as C from './constants.js';
  * Manages the quantum wave function, potential field, and kinetic operator
  */
 export class SimulationState {
+    /**
+     * Initialize the simulation state with wave function and operators
+     * Creates normalized Gaussian wave packet and precalculates kinetic operator
+     */
     constructor() {
         this.gridSize = { width: C.GRID_SIZE, height: C.GRID_SIZE };
 

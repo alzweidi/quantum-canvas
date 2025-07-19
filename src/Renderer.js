@@ -11,8 +11,6 @@ export class Renderer {
         this.canvas = canvasElement;
         this.regl = createREGL(canvasElement);
 
-        console.log('✓ WebGL context created successfully');
-
         // Create texture for wave function data using unsigned bytes
         this.psiTexture = this.regl.texture({
             width: canvasElement.width,
@@ -112,7 +110,6 @@ export class Renderer {
             count: 6
         });
 
-        console.log('✓ Renderer initialized with WebGL shaders');
     }
 
     /**

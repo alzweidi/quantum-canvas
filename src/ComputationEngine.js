@@ -2,7 +2,15 @@
 import * as C from './constants.js';
 import { fft, ifft } from './fft.js';
 
+/**
+ * ComputationEngine class - Executes quantum physics simulation time steps
+ * Implements the Split-Step Fourier Method for solving the time-dependent Schrödinger equation
+ */
 export class ComputationEngine {
+    /**
+     * Initialize the computation engine with necessary buffers and FFT workspace
+     * @param {Object} gridSize - Grid dimensions with width and height properties
+     */
     constructor(gridSize) {
         this.gridSize = gridSize;
         this.buffer1 = new Float32Array(gridSize.width * gridSize.height * 2);
@@ -13,12 +21,24 @@ export class ComputationEngine {
         this.imag = new Float32Array(this.gridSize.width);
     }
 
+    /**
+     * Execute one time step of the quantum simulation using Split-Step Fourier Method
+     * Applies V/2 → T → V/2 sequence for accurate time evolution
+     * @param {SimulationState} state - The simulation state to advance
+     */
     step(state) {
         this._applyPotential(state, C.DT / 2.0);
         this._applyKinetic(state);
         this._applyPotential(state, C.DT / 2.0);
     }
     
+    /**
+     * Apply potential operator to wave function in position space
+     * Multiplies by exp(-iV*dt/ℏ) for each grid point
+     * @param {SimulationState} state - The simulation state
+     * @param {number} dt - Time step for this potential application
+     * @private
+     */
     _applyPotential(state, dt) {
         const psi = state.psi;
         const potential = state.potential;
@@ -40,11 +60,17 @@ export class ComputationEngine {
         }
     }
 
+    /**
+     * Apply kinetic operator to wave function in momentum space
+     * Transforms to k-space, applies exp(-iT*dt/ℏ), then transforms back
+     * @param {SimulationState} state - The simulation state
+     * @private
+     */
     _applyKinetic(state) {
         // 1. Transform to momentum space
         this._fft2D(state.psi, this.buffer1);
 
-        // 2. Apply the kinetic operator (THE CORRECTED LOGIC)
+        // 2. Apply the kinetic operator with correct quantum time evolution
         for (let i = 0; i < this.buffer1.length; i += 2) {
             // Get the kinetic energy T(k) from the pre-calculated array
             const T = state.kineticOperatorK[i];
@@ -65,6 +91,14 @@ export class ComputationEngine {
         this._ifft2D(this.buffer1, state.psi);
     }
 
+    /**
+     * Transpose a 2D complex array for efficient FFT computation
+     * @param {Float32Array} source - Source array to transpose
+     * @param {Float32Array} destination - Destination array for result
+     * @param {number} width - Width of the 2D array
+     * @param {number} height - Height of the 2D array
+     * @private
+     */
     _transpose(source, destination, width, height) {
         for (let i = 0; i < height; i++) {
             for (let j = 0; j < width; j++) {
@@ -76,6 +110,12 @@ export class ComputationEngine {
         }
     }
 
+    /**
+     * Perform FFT on a single row of interleaved complex data
+     * @param {Float32Array} input - Interleaved complex input array
+     * @param {Float32Array} output - Interleaved complex output array
+     * @private
+     */
     _fftRow(input, output) {
         const size = input.length / 2;
         for (let i = 0; i < size; i++) {
@@ -89,6 +129,12 @@ export class ComputationEngine {
         }
     }
 
+    /**
+     * Perform inverse FFT on a single row of interleaved complex data
+     * @param {Float32Array} input - Interleaved complex input array
+     * @param {Float32Array} output - Interleaved complex output array
+     * @private
+     */
     _ifftRow(input, output) {
         const size = input.length / 2;
         for (let i = 0; i < size; i++) {
@@ -102,6 +148,12 @@ export class ComputationEngine {
         }
     }
     
+    /**
+     * Perform 2D FFT using row-column decomposition
+     * @param {Float32Array} input - Input 2D array as interleaved complex
+     * @param {Float32Array} output - Output 2D array as interleaved complex
+     * @private
+     */
     _fft2D(input, output) {
         for (let i = 0; i < this.gridSize.height; i++) {
             const row_in = input.subarray(i * this.gridSize.width * 2, (i + 1) * this.gridSize.width * 2);
@@ -114,6 +166,12 @@ export class ComputationEngine {
         }
     }
 
+    /**
+     * Perform 2D inverse FFT using row-column decomposition
+     * @param {Float32Array} input - Input 2D array as interleaved complex
+     * @param {Float32Array} output - Output 2D array as interleaved complex
+     * @private
+     */
     _ifft2D(input, output) {
         for (let i = 0; i < this.gridSize.width; i++) {
             const row_in = input.subarray(i * this.gridSize.height * 2, (i + 1) * this.gridSize.height * 2);

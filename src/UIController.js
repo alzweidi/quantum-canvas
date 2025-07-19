@@ -21,7 +21,6 @@ export class UIController {
         this.scaleY = 1.0;
 
         this._setupEventListeners();
-        console.log('✓ UI Controller initialized with mouse interaction');
     }
 
     /**
@@ -106,15 +105,6 @@ export class UIController {
         // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
         const gridY = Math.floor((rect.height - mouseY) * scaleY);
 
-        // Debug logging to verify coordinate conversion
-        console.log('Draw event:', {
-            mouse: { x: mouseX, y: mouseY },
-            grid: { x: gridX, y: gridY },
-            displayedSize: { w: rect.width, h: rect.height },
-            internalSize: { w: this.canvas.width, h: this.canvas.height },
-            scale: { x: scaleX, y: scaleY }
-        });
-
         // Apply barrier with brush size
         this._applyBrush(gridX, gridY);
     }
@@ -161,7 +151,6 @@ export class UIController {
         for (let i = 0; i < this.state.potential.length; i++) {
             this.state.potential[i] = 0.0;
         }
-        console.log('All potential barriers cleared');
     }
 
     /**
@@ -170,7 +159,6 @@ export class UIController {
     resetSimulation() {
         this.state.resetWaveFunction();
         this.clearWalls();
-        console.log('Simulation reset to initial state');
     }
 
     /**
