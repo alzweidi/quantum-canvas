@@ -109,16 +109,51 @@ clearButton.addEventListener('click', () => {
 console.log('✓ Button event listeners configured');
 
 /**
- * Main game loop - advances the simulation and renders to canvas
+ * Debugging helper function to check wave function health
  */
+function checkWaveFunction(state, label) {
+    let sumOfSquares = 0;
+    let hasNaN = false;
+    for (let i = 0; i < state.psi.length; i++) {
+        if (isNaN(state.psi[i])) {
+            hasNaN = true;
+            break;
+        }
+        if (i % 2 === 0) { // Summing magnitude squared: real^2 + imag^2
+            sumOfSquares += state.psi[i] * state.psi[i] + state.psi[i+1] * state.psi[i+1];
+        }
+    }
+    if (hasNaN) {
+        console.error(`FAILURE at ${label}: Found NaN values.`);
+    } else {
+        console.log(`CHECK at ${label}: Normalization = ${sumOfSquares.toFixed(6)}`);
+    }
+}
+
+/**
+ * Instrumented game loop with detailed debugging for first 5 frames
+ */
+let frameCount = 0;
 function gameLoop() {
-    // Advance the simulation by one time step
-    engine.step(state);
-    
-    // Render the current state to the canvas
+    if (frameCount < 5) { // Only log the first 5 frames to avoid spam
+        console.log(`--- FRAME ${frameCount} ---`);
+        checkWaveFunction(state, 'Start of Frame');
+
+        engine._applyPotential(state, C.DT / 2.0);
+        checkWaveFunction(state, 'After V/2 (1)');
+
+        engine._applyKinetic(state);
+        checkWaveFunction(state, 'After Kinetic');
+
+        engine._applyPotential(state, C.DT / 2.0);
+        checkWaveFunction(state, 'After V/2 (2)');
+    } else {
+        // Normal operation for frames after debugging
+        engine.step(state);
+    }
+
     renderer.draw(state);
-    
-    // Continue the animation loop
+    frameCount++;
     requestAnimationFrame(gameLoop);
 }
 
