@@ -1,8 +1,8 @@
-import * as C from './constants.js';
-import { SimulationState } from './SimulationState.js';
-import { ComputationEngine } from './ComputationEngine.js';
-import { Renderer } from './Renderer.js';
-import { UIController } from './UIController.js';
+import * as C from "./constants.js";
+import { SimulationState } from "./SimulationState.js";
+import { ComputationEngine } from "./ComputationEngine.js";
+import { Renderer } from "./Renderer.js";
+import { UIController } from "./UIController.js";
 
 /**
  * Main application entry point for the Interactive 2D Quantum Simulator
@@ -10,7 +10,7 @@ import { UIController } from './UIController.js';
  */
 
 // Set canvas size to match simulation grid
-const canvas = document.getElementById('sim-canvas');
+const canvas = document.getElementById("sim-canvas");
 canvas.width = C.GRID_SIZE;
 canvas.height = C.GRID_SIZE;
 
@@ -29,9 +29,9 @@ uiController.updateScaling();
  * @private
  */
 function gameLoop() {
-    engine.step(state);
-    renderer.draw(state);
-    requestAnimationFrame(gameLoop);
+  engine.step(state);
+  renderer.draw(state);
+  requestAnimationFrame(gameLoop);
 }
 
 // Initialize application

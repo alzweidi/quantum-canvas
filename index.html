@@ -1,24 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Quantum Simulator</title>
-    <link rel="stylesheet" href="src/style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Command Console</h3>
-        <div class="control-group">
-            <button id="reset-button">Reset Simulation</button>
-            <button id="clear-button">Clear Walls</button>
-        </div>
-        <div class="control-group">
-            <label for="brush-slider">Brush Size: <span id="brush-size-value">5</span></label>
-            <input type="range" min="1" max="20" value="5" id="brush-slider">
-        </div>
+      <h3>Command Console</h3>
+      <div class="control-group">
+        <button id="reset-button">Reset Simulation</button>
+        <button id="clear-button">Clear Walls</button>
+      </div>
+      <div class="control-group">
+        <label for="brush-slider"
+          >Brush Size: <span id="brush-size-value">5</span></label
+        >
+        <input type="range" min="1" max="20" value="5" id="brush-slider" />
+      </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>
-</body>
+  </body>
 </html>

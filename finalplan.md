@@ -1,4 +1,5 @@
 ## The Final "Epic" Plan (Milestone 5)
+
 This is the master plan for our final phase.
 
 Part 1: The "Command Console" - UI/UX Overhaul
@@ -50,6 +51,7 @@ High Performance: The bloom will be implemented using an efficient two-pass (hor
 User Control: A "Bloom Intensity" slider will be added to the Command Console.
 
 ## Let's Begin: Prompt for Part 1 - The Command Console (Enhanced)
+
 Here is the first prompt to begin this final milestone.
 
 We will now begin the final "epic" phase. Your first task is Part 1: The Command Console. You will overhaul the UI, centralize its logic, and make it responsive.
@@ -68,7 +70,7 @@ Update the ui-panel with the new structure below, which includes a <span> to dis
 
 Update src/UIController.js:
 
-Move the button event listener logic from main.js into the _setupEventListeners method to centralize all UI logic.
+Move the button event listener logic from main.js into the \_setupEventListeners method to centralize all UI logic.
 
 Add an event listener for the new brush size slider. It should update both the this.brushSize property and the text content of the <span>.
 
@@ -94,70 +96,66 @@ New HTML structure for ui-panel:
     </div>
 </div>
 
-
 Content for the new src/style.css file:
 
-body { 
-    margin: 0; 
-    background-color: #111; 
-    overflow: hidden; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    height: 100vh; 
+body {
+margin: 0;
+background-color: #111;
+overflow: hidden;
+display: flex;
+justify-content: center;
+align-items: center;
+height: 100vh;
 }
-canvas { 
-    display: block; 
-    box-shadow: 0 0 20px rgba(0, 255, 150, 0.5); 
+canvas {
+display: block;
+box-shadow: 0 0 20px rgba(0, 255, 150, 0.5);
 }
 #ui-panel {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background-color: rgba(40, 40, 40, 0.85);
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: 1px solid #444;
-    color: #eee;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    width: 240px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+position: absolute;
+top: 20px;
+left: 20px;
+background-color: rgba(40, 40, 40, 0.85);
+padding: 10px 20px;
+border-radius: 8px;
+border: 1px solid #444;
+color: #eee;
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+width: 240px;
+box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 h3 {
-    margin-top: 0;
-    text-align: center;
-    border-bottom: 1px solid #555;
-    padding-bottom: 10px;
-    font-weight: 500;
+margin-top: 0;
+text-align: center;
+border-bottom: 1px solid #555;
+padding-bottom: 10px;
+font-weight: 500;
 }
 .control-group {
-    margin-bottom: 15px;
+margin-bottom: 15px;
 }
 label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-    font-weight: 500;
+display: block;
+margin-bottom: 8px;
+font-size: 14px;
+font-weight: 500;
 }
 input[type="range"] {
-    width: 100%;
-    cursor: pointer;
+width: 100%;
+cursor: pointer;
 }
 button {
-    width: 100%;
-    margin-bottom: 5px;
-    padding: 10px 12px;
-    background-color: #3a3a3a;
-    color: white;
-    border: 1px solid #555;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s;
+width: 100%;
+margin-bottom: 5px;
+padding: 10px 12px;
+background-color: #3a3a3a;
+color: white;
+border: 1px solid #555;
+border-radius: 4px;
+cursor: pointer;
+font-size: 14px;
+transition: background-color 0.2s;
 }
-button:hover { 
-    background-color: #555; 
+button:hover {
+background-color: #555;
 }
-
-
-
