@@ -103,7 +103,8 @@ export class UIController {
         const scaleY = this.state.gridSize.height / rect.height;
         
         const gridX = Math.floor(mouseX * scaleX);
-        const gridY = Math.floor(mouseY * scaleY);
+        // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
+        const gridY = Math.floor((rect.height - mouseY) * scaleY);
 
         // Debug logging to verify coordinate conversion
         console.log('Draw event:', {
