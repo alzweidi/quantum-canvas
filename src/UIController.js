@@ -37,13 +37,15 @@ export class UIController {
             e.preventDefault();
         });
 
-        // Mouse down - start drawing or velocity setting
+        // Mouse down - start drawing, velocity setting, or move packet
         this.canvas.addEventListener('mousedown', (e) => {
             if (this.mouseMode === 'draw') {
                 this.isDrawing = true;
                 this._drawAtPosition(e);
             } else if (this.mouseMode === 'velocity') {
                 this._startVelocitySelection(e);
+            } else if (this.mouseMode === 'move') {
+                this._movePacketToPosition(e);
             }
         });
 
@@ -356,6 +358,32 @@ export class UIController {
 
         // Clear starting position
         this.velocityStartPos = null;
+    }
+
+    /**
+     * Move wave packet to clicked position
+     * @param {MouseEvent} event - The mouse event containing position information
+     * @private
+     */
+    _movePacketToPosition(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // Convert from displayed canvas coordinates to grid coordinates
+        const scaleX = this.state.gridSize.width / rect.width;
+        const scaleY = this.state.gridSize.height / rect.height;
+        
+        const gridX = Math.floor(mouseX * scaleX);
+        // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
+        const gridY = Math.floor((rect.height - mouseY) * scaleY);
+
+        // Update wave packet position parameters
+        this.state.params.x0 = gridX;
+        this.state.params.y0 = gridY;
+
+        // Immediately teleport the wave packet to the new location
+        this.state.resetWaveFunction();
     }
 
     /**

@@ -18,7 +18,9 @@ export class SimulationState {
             py: C.P_Y,           // Momentum in y-direction
             sigma: C.SIGMA,      // Wave packet width
             brightness: 1.0,     // Visualization brightness
-            dt: 0.005            // Time step for simulation (critical for stability)
+            dt: 0.005,           // Time step for simulation (critical for stability)
+            x0: C.GRID_SIZE / 4, // Initial x position of wave packet
+            y0: C.GRID_SIZE / 2  // Initial y position of wave packet
         };
 
         // Interleaved complex arrays: [real0, imag0, real1, imag1, ...]
@@ -70,9 +72,9 @@ export class SimulationState {
         const dx = 1.0; // Grid spacing
         const dy = 1.0;
         
-        // Center the wave packet
-        const x0 = size / 4; // Start at 1/4 of the grid
-        const y0 = size / 2; // Center vertically
+        // Use tunable position parameters
+        const x0 = this.params.x0;
+        const y0 = this.params.y0;
         
         // Clear potential (no barriers initially)
         this.potential.fill(0.0);
