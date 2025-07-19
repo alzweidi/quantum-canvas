@@ -37,6 +37,17 @@
             <label for="sigma-slider">Packet Width: <span id="sigma-value">15</span></label>
             <input type="range" min="5" max="30" value="15" step="1" id="sigma-slider">
         </div>
+        <div class="control-group">
+            <label for="speed-slider">Speed: <span id="speed-value">1</span></label>
+            <input type="range" min="1" max="10" value="1" step="1" id="speed-slider">
+        </div>
+        <div class="control-group">
+            <label>Mouse Mode:</label>
+            <div class="radio-group">
+                <label><input type="radio" name="mouse-mode" value="draw" checked> Draw Walls</label>
+                <label><input type="radio" name="mouse-mode" value="velocity"> Set Packet Velocity</label>
+            </div>
+        </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>

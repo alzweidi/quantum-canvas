@@ -17,7 +17,8 @@ export class SimulationState {
             px: C.P_X,           // Momentum in x-direction
             py: C.P_Y,           // Momentum in y-direction
             sigma: C.SIGMA,      // Wave packet width
-            brightness: 1.0      // Visualization brightness
+            brightness: 1.0,     // Visualization brightness
+            speed: 1             // Simulation speed (steps per frame)
         };
 
         // Interleaved complex arrays: [real0, imag0, real1, imag1, ...]

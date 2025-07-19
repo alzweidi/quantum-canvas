@@ -15,6 +15,10 @@ export class UIController {
         this.state = state;
         this.isDrawing = false;
         this.brushSize = 5; // Radius of the drawing brush in grid units (matches HTML default)
+        
+        // Mouse mode tracking
+        this.mouseMode = 'draw'; // 'draw' or 'velocity'
+        this.velocityStartPos = null; // For velocity mode tracking
 
         // Initial scaling - will be updated dynamically based on actual display size
         this.scaleX = 1.0;
@@ -33,22 +37,30 @@ export class UIController {
             e.preventDefault();
         });
 
-        // Mouse down - start drawing
+        // Mouse down - start drawing or velocity setting
         this.canvas.addEventListener('mousedown', (e) => {
-            this.isDrawing = true;
-            this._drawAtPosition(e);
+            if (this.mouseMode === 'draw') {
+                this.isDrawing = true;
+                this._drawAtPosition(e);
+            } else if (this.mouseMode === 'velocity') {
+                this._startVelocitySelection(e);
+            }
         });
 
         // Mouse move - continue drawing if mouse is down
         this.canvas.addEventListener('mousemove', (e) => {
-            if (this.isDrawing) {
+            if (this.isDrawing && this.mouseMode === 'draw') {
                 this._drawAtPosition(e);
             }
         });
 
-        // Mouse up - stop drawing
-        this.canvas.addEventListener('mouseup', () => {
-            this.isDrawing = false;
+        // Mouse up - stop drawing or complete velocity setting
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (this.mouseMode === 'draw') {
+                this.isDrawing = false;
+            } else if (this.mouseMode === 'velocity' && this.velocityStartPos) {
+                this._completeVelocitySelection(e);
+            }
         });
 
         // Mouse leave - stop drawing if mouse leaves canvas
@@ -162,6 +174,25 @@ export class UIController {
             this.state.resetWaveFunction();
         });
 
+        // Speed slider
+        const speedSlider = document.getElementById('speed-slider');
+        const speedValue = document.getElementById('speed-value');
+
+        speedSlider.addEventListener('input', (e) => {
+            const newSpeed = parseInt(e.target.value);
+            this.state.params.speed = newSpeed;
+            speedValue.textContent = newSpeed;
+        });
+
+        // Mouse Mode radio buttons
+        const mouseModeRadios = document.querySelectorAll('input[name="mouse-mode"]');
+        
+        mouseModeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.mouseMode = e.target.value;
+            });
+        });
+
         // Window resize handler for responsive coordinate mapping
         window.addEventListener('resize', () => {
             this.updateScaling();
@@ -272,6 +303,59 @@ export class UIController {
             this.state.gridSize.width,
             this.state.gridSize.height
         );
+    }
+
+    /**
+     * Start velocity selection mode - record starting position
+     * @param {MouseEvent} event - The mouse event containing position information
+     * @private
+     */
+    _startVelocitySelection(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // Store starting position for velocity calculation
+        this.velocityStartPos = { x: mouseX, y: mouseY };
+    }
+
+    /**
+     * Complete velocity selection - calculate vector and set wave packet velocity
+     * @param {MouseEvent} event - The mouse event containing end position
+     * @private
+     */
+    _completeVelocitySelection(event) {
+        if (!this.velocityStartPos) return;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const endX = event.clientX - rect.left;
+        const endY = event.clientY - rect.top;
+
+        // Calculate drag vector
+        const deltaX = endX - this.velocityStartPos.x;
+        const deltaY = endY - this.velocityStartPos.y;
+
+        // Convert to momentum values with appropriate scaling
+        // Scale factor to map pixel distance to reasonable momentum range
+        const momentumScale = 2.0;
+        const newPx = Math.round(deltaX * momentumScale);
+        const newPy = Math.round(-deltaY * momentumScale); // Negative because Y increases downward in screen space
+
+        // Clamp momentum values to slider ranges
+        this.state.params.px = Math.max(-150, Math.min(150, newPx));
+        this.state.params.py = Math.max(-150, Math.min(150, newPy));
+
+        // Update UI displays
+        document.getElementById('px-value').textContent = this.state.params.px;
+        document.getElementById('py-value').textContent = this.state.params.py;
+        document.getElementById('px-slider').value = this.state.params.px;
+        document.getElementById('py-slider').value = this.state.params.py;
+
+        // Apply new momentum to wave function
+        this.state.resetWaveFunction();
+
+        // Clear starting position
+        this.velocityStartPos = null;
     }
 
     /**
