@@ -1,10 +1,10 @@
-import { SimulationState } from './SimulationState.js';
-import { ComputationEngine } from './ComputationEngine.js';
-import { Renderer } from './Renderer.js';
-import { UIController } from './UIController.js';
-import * as C from './constants.js';
+import { SimulationState } from "./SimulationState.js";
+import { ComputationEngine } from "./ComputationEngine.js";
+import { Renderer } from "./Renderer.js";
+import { UIController } from "./UIController.js";
+import * as C from "./constants.js";
 
-const canvas = document.getElementById('sim-canvas');
+const canvas = document.getElementById("sim-canvas");
 canvas.width = C.GRID_SIZE;
 canvas.height = C.GRID_SIZE;
 
@@ -14,9 +14,9 @@ const renderer = new Renderer(canvas);
 const uiController = new UIController(canvas, state);
 
 function gameLoop() {
-    engine.step(state);
-    renderer.draw(state);
-    requestAnimationFrame(gameLoop);
+  engine.step(state);
+  renderer.draw(state);
+  requestAnimationFrame(gameLoop);
 }
 
 gameLoop();
