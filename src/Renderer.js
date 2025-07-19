@@ -56,6 +56,7 @@ export class Renderer {
                 uniform sampler2D psiTexture;
                 uniform sampler2D potentialTexture;
                 uniform float u_brightness;
+                uniform vec2 u_startPos;
                 varying vec2 uv;
 
                 // Standard HSL to RGB conversion
@@ -93,6 +94,23 @@ export class Renderer {
                     // Blend wave function with barrier overlay - more prominent barriers
                     vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.9);
 
+                    // Add start position marker (crosshair)
+                    vec2 diff = abs(uv - u_startPos);
+                    float crosshair = 0.0;
+                    
+                    // Horizontal line
+                    if (diff.y < 0.003 && diff.x < 0.02) {
+                        crosshair = 1.0;
+                    }
+                    // Vertical line
+                    if (diff.x < 0.003 && diff.y < 0.02) {
+                        crosshair = 1.0;
+                    }
+                    
+                    // Blend crosshair with final color (faint white overlay)
+                    vec3 markerColor = vec3(1.0, 1.0, 1.0);
+                    finalColor = mix(finalColor, markerColor, crosshair * 0.3);
+
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
             `,
@@ -109,7 +127,8 @@ export class Renderer {
             uniforms: {
                 psiTexture: this.psiTexture,
                 potentialTexture: this.potentialTexture,
-                u_brightness: this.regl.prop('brightness')
+                u_brightness: this.regl.prop('brightness'),
+                u_startPos: this.regl.prop('startPos')
             },
 
             // Draw 6 vertices (2 triangles = fullscreen quad)
@@ -163,7 +182,16 @@ export class Renderer {
             depth: 1
         });
 
-        // Execute the draw command with brightness parameter
-        this.drawCommand({ brightness: state.params.brightness });
+        // Convert start position from grid coordinates to UV coordinates (0-1 range)
+        const startPosUV = [
+            state.params.x0 / state.gridSize.width,
+            1.0 - (state.params.y0 / state.gridSize.height) // Flip Y for correct UV mapping
+        ];
+
+        // Execute the draw command with brightness and start position parameters
+        this.drawCommand({ 
+            brightness: state.params.brightness,
+            startPos: startPosUV
+        });
     }
 }

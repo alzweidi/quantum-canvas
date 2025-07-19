@@ -45,7 +45,7 @@ export class UIController {
             } else if (this.mouseMode === 'velocity') {
                 this._startVelocitySelection(e);
             } else if (this.mouseMode === 'move') {
-                this._movePacketToPosition(e);
+                this._setStartPosition(e);
             }
         });
 
@@ -361,11 +361,11 @@ export class UIController {
     }
 
     /**
-     * Move wave packet to clicked position
+     * Set the start position for wave packet (applied on next reset)
      * @param {MouseEvent} event - The mouse event containing position information
      * @private
      */
-    _movePacketToPosition(event) {
+    _setStartPosition(event) {
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
@@ -378,12 +378,12 @@ export class UIController {
         // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
         const gridY = Math.floor((rect.height - mouseY) * scaleY);
 
-        // Update wave packet position parameters
-        this.state.params.x0 = gridX;
-        this.state.params.y0 = gridY;
+        // Clamp coordinates to valid grid bounds
+        this.state.params.x0 = Math.max(0, Math.min(this.state.gridSize.width - 1, gridX));
+        this.state.params.y0 = Math.max(0, Math.min(this.state.gridSize.height - 1, gridY));
 
-        // Immediately teleport the wave packet to the new location
-        this.state.resetWaveFunction();
+        // Note: Does not call resetWaveFunction() - position will be applied on next reset
+        console.log(`Start position set to (${this.state.params.x0}, ${this.state.params.y0})`);
     }
 
     /**
