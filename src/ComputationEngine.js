@@ -86,17 +86,25 @@ export class ComputationEngine {
     }
 
     _ifft2D(input, output) {
+        // Inverse FFT rows
         for (let i = 0; i < this.gridSize.width; i++) {
             const row_in = input.subarray(i * this.gridSize.height * 2, (i + 1) * this.gridSize.height * 2);
             this._ifftRow(row_in, this.buffer1.subarray(i * this.gridSize.height * 2, (i + 1) * this.gridSize.height * 2));
         }
+
         this._transpose(this.buffer1, this.buffer2, this.gridSize.height, this.gridSize.width);
-        const norm = 1.0 / (this.gridSize.width * this.gridSize.height);
+
+        // Inverse FFT columns
         for (let i = 0; i < this.gridSize.height; i++) {
             const col_in = this.buffer2.subarray(i * this.gridSize.width * 2, (i + 1) * this.gridSize.width * 2);
             const col_out = output.subarray(i * this.gridSize.width * 2, (i + 1) * this.gridSize.width * 2);
-            this._ifftRow(col_in, col_out); // Note: inverse transform happens here
-            for(let j = 0; j < col_out.length; j++) { col_out[j] *= norm; } // Apply normalization
+            this._ifftRow(col_in, col_out);
+        }
+
+        // CRITICAL: APPLY FINAL NORMALIZATION
+        const norm = 1.0 / (this.gridSize.width * this.gridSize.height);
+        for (let i = 0; i < output.length; i++) {
+            output[i] *= norm;
         }
     }
 
