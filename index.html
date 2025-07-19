@@ -1,44 +1,78 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Quantum Simulator</title>
-    <link rel="stylesheet" href="src/style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Command Console</h3>
-        <div class="control-group">
-            <button id="reset-button">Reset Simulation</button>
-            <button id="clear-button">Clear Walls</button>
-        </div>
-        <div class="control-group">
-            <button id="double-slit-button">Double Slit</button>
-            <button id="tunneling-button">Tunneling</button>
-        </div>
-        <div class="control-group">
-            <label for="brush-slider">Brush Size: <span id="brush-size-value">5</span></label>
-            <input type="range" min="1" max="20" value="5" id="brush-slider">
-        </div>
-        <div class="control-group">
-            <label for="brightness-slider">Brightness: <span id="brightness-value">1.0</span></label>
-            <input type="range" min="0.1" max="5" value="1" step="0.1" id="brightness-slider">
-        </div>
-        <div class="control-group">
-            <label for="px-slider">Momentum X: <span id="px-value">60</span></label>
-            <input type="range" min="-150" max="150" value="60" step="1" id="px-slider">
-        </div>
-        <div class="control-group">
-            <label for="py-slider">Momentum Y: <span id="py-value">0</span></label>
-            <input type="range" min="-150" max="150" value="0" step="1" id="py-slider">
-        </div>
-        <div class="control-group">
-            <label for="sigma-slider">Packet Width: <span id="sigma-value">15</span></label>
-            <input type="range" min="5" max="30" value="15" step="1" id="sigma-slider">
-        </div>
+      <h3>Command Console</h3>
+      <div class="control-group">
+        <button id="reset-button">Reset Simulation</button>
+        <button id="clear-button">Clear Walls</button>
+      </div>
+      <div class="control-group">
+        <button id="double-slit-button">Double Slit</button>
+        <button id="tunneling-button">Tunneling</button>
+      </div>
+      <div class="control-group">
+        <label for="brush-slider"
+          >Brush Size: <span id="brush-size-value">5</span></label
+        >
+        <input type="range" min="1" max="20" value="5" id="brush-slider" />
+      </div>
+      <div class="control-group">
+        <label for="brightness-slider"
+          >Brightness: <span id="brightness-value">1.0</span></label
+        >
+        <input
+          type="range"
+          min="0.1"
+          max="5"
+          value="1"
+          step="0.1"
+          id="brightness-slider"
+        />
+      </div>
+      <div class="control-group">
+        <label for="px-slider">Momentum X: <span id="px-value">60</span></label>
+        <input
+          type="range"
+          min="-150"
+          max="150"
+          value="60"
+          step="1"
+          id="px-slider"
+        />
+      </div>
+      <div class="control-group">
+        <label for="py-slider">Momentum Y: <span id="py-value">0</span></label>
+        <input
+          type="range"
+          min="-150"
+          max="150"
+          value="0"
+          step="1"
+          id="py-slider"
+        />
+      </div>
+      <div class="control-group">
+        <label for="sigma-slider"
+          >Packet Width: <span id="sigma-value">15</span></label
+        >
+        <input
+          type="range"
+          min="5"
+          max="30"
+          value="15"
+          step="1"
+          id="sigma-slider"
+        />
+      </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>
-</body>
+  </body>
 </html>
