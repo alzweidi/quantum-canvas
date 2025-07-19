@@ -1,6 +1,7 @@
 import * as C from './constants.js';
 import { SimulationState } from './SimulationState.js';
 import { ComputationEngine } from './ComputationEngine.js';
+import { Renderer } from './Renderer.js';
 
 /**
  * Main application entry point
@@ -69,9 +70,18 @@ if (!fftAvailable) {
 
 console.log('✓ Milestone 1: The Static State - Successfully initialized');
 
+// Set canvas size
+const canvas = document.getElementById('sim-canvas');
+canvas.width = C.GRID_SIZE;
+canvas.height = C.GRID_SIZE;
+
 // Initialize the computation engine
 const engine = new ComputationEngine(state.gridSize);
 console.log('✓ Computation Engine initialized');
+
+// Initialize the renderer
+const renderer = new Renderer(canvas);
+console.log('✓ Renderer initialized');
 
 // Animation loop variables
 let frameCount = 0;
@@ -79,43 +89,20 @@ let lastLogTime = Date.now();
 const LOG_INTERVAL = 1000; // Log every 1 second
 
 /**
- * Main game loop - advances the simulation and provides verification
+ * Main game loop - advances the simulation and renders to canvas
  */
 function gameLoop() {
     // Advance the simulation by one time step
     engine.step(state);
     
-    frameCount++;
-    const currentTime = Date.now();
-    
-    // Periodically log verification data to show the simulation is evolving
-    if (currentTime - lastLogTime > LOG_INTERVAL) {
-        // Calculate current wave function statistics
-        let currentMagnitudeSum = 0;
-        let maxProbability = 0;
-        
-        for (let i = 0; i < state.psi.length; i += 2) {
-            const real = state.psi[i];
-            const imag = state.psi[i + 1];
-            const probability = real * real + imag * imag;
-            currentMagnitudeSum += probability;
-            maxProbability = Math.max(maxProbability, probability);
-        }
-        
-        console.log(`Frame ${frameCount}: Evolution verification`);
-        console.log('  Current psi sample:', state.psi.slice(0, 8));
-        console.log('  Normalization:', currentMagnitudeSum.toFixed(6));
-        console.log('  Max probability density:', maxProbability.toFixed(6));
-        console.log('  FPS estimate:', (frameCount * 1000 / (currentTime - (lastLogTime - LOG_INTERVAL))).toFixed(1));
-        
-        lastLogTime = currentTime;
-    }
+    // Render the current state to the canvas
+    renderer.draw(state);
     
     // Continue the animation loop
     requestAnimationFrame(gameLoop);
 }
 
 // Start the main animation loop
-console.log('✓ Starting Milestone 2: The Evolving Engine');
-console.log('Wave function is now evolving - check console logs for verification');
+console.log('✓ Starting Milestone 3: The Visualizer');
+console.log('Quantum wave function is now being rendered to canvas');
 gameLoop();
