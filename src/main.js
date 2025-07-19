@@ -2,6 +2,7 @@ import * as C from './constants.js';
 import { SimulationState } from './SimulationState.js';
 import { ComputationEngine } from './ComputationEngine.js';
 import { Renderer } from './Renderer.js';
+import { UIController } from './UIController.js';
 
 /**
  * Main application entry point
@@ -83,10 +84,23 @@ console.log('✓ Computation Engine initialized');
 const renderer = new Renderer(canvas);
 console.log('✓ Renderer initialized');
 
-// Animation loop variables
-let frameCount = 0;
-let lastLogTime = Date.now();
-const LOG_INTERVAL = 1000; // Log every 1 second
+// Initialize the UI controller
+const uiController = new UIController(canvas, state);
+console.log('✓ UI Controller initialized');
+
+// Setup button event listeners
+const resetButton = document.getElementById('reset-button');
+const clearButton = document.getElementById('clear-button');
+
+resetButton.addEventListener('click', () => {
+    uiController.resetSimulation();
+});
+
+clearButton.addEventListener('click', () => {
+    uiController.clearWalls();
+});
+
+console.log('✓ Button event listeners configured');
 
 /**
  * Main game loop - advances the simulation and renders to canvas
@@ -103,6 +117,6 @@ function gameLoop() {
 }
 
 // Start the main animation loop
-console.log('✓ Starting Milestone 3: The Visualizer');
-console.log('Quantum wave function is now being rendered to canvas');
+console.log('✓ Starting Milestone 4: Full Interactivity');
+console.log('Interactive quantum simulator ready - click and drag to draw barriers!');
 gameLoop();
