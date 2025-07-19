@@ -83,12 +83,12 @@ export class Renderer {
                     // Read potential barrier value (normalized to [0,1])
                     float potential = texture2D(potentialTexture, uv).r;
                     
-                    // Create barrier visualization (red overlay)
-                    vec3 barrierColor = vec3(1.0, 0.2, 0.2); // Red color for barriers
-                    float barrierOpacity = smoothstep(0.01, 0.5, potential);
+                    // Create barrier visualization (bright red overlay)
+                    vec3 barrierColor = vec3(1.0, 0.1, 0.1); // Brighter red color for barriers
+                    float barrierOpacity = smoothstep(0.005, 0.3, potential);
                     
-                    // Blend wave function with barrier overlay
-                    vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.8);
+                    // Blend wave function with barrier overlay - more prominent barriers
+                    vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.9);
 
                     gl_FragColor = vec4(finalColor, 1.0);
                 }

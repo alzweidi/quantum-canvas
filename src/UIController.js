@@ -14,11 +14,12 @@ export class UIController {
         this.canvas = canvasElement;
         this.state = state;
         this.isDrawing = false;
-        this.brushSize = 3; // Radius of the drawing brush in grid units
+        this.brushSize = 6; // Radius of the drawing brush in grid units - increased for better visibility
 
         // Calculate scaling factors for coordinate conversion
-        this.scaleX = this.state.gridSize.width / this.canvas.clientWidth;
-        this.scaleY = this.state.gridSize.height / this.canvas.clientHeight;
+        // Use actual canvas dimensions instead of display dimensions for accurate mapping
+        this.scaleX = this.state.gridSize.width / this.canvas.width;
+        this.scaleY = this.state.gridSize.height / this.canvas.height;
 
         this._setupEventListeners();
         console.log('✓ UI Controller initialized with mouse interaction');
@@ -182,7 +183,7 @@ export class UIController {
      * Update canvas scaling if canvas size changes
      */
     updateScaling() {
-        this.scaleX = this.state.gridSize.width / this.canvas.clientWidth;
-        this.scaleY = this.state.gridSize.height / this.canvas.clientHeight;
+        this.scaleX = this.state.gridSize.width / this.canvas.width;
+        this.scaleY = this.state.gridSize.height / this.canvas.height;
     }
 }
