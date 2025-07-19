@@ -1,9 +1,10 @@
 import * as C from './constants.js';
 import { SimulationState } from './SimulationState.js';
+import { ComputationEngine } from './ComputationEngine.js';
 
 /**
  * Main application entry point
- * Initializes the simulation state and provides verification
+ * Initializes the simulation state, computation engine, and runs the main loop
  */
 
 console.log('Initializing Quantum Simulator...');
@@ -21,7 +22,7 @@ console.log('Psi array length:', state.psi.length);
 console.log('Potential array length:', state.potential.length);
 console.log('Kinetic operator array length:', state.kineticOperatorK.length);
 
-// Calculate and display some basic statistics
+// Calculate and display initial statistics
 let psiMagnitudeSum = 0;
 for (let i = 0; i < state.psi.length; i += 2) {
     const real = state.psi[i];
@@ -63,7 +64,58 @@ for (const { name, test } of fftTests) {
 
 if (!fftAvailable) {
     console.error('✗ No working FFT library found - this will block Milestone 2');
+    throw new Error('FFT library not available');
 }
 
 console.log('✓ Milestone 1: The Static State - Successfully initialized');
-console.log('Ready for Milestone 2: The Evolving Engine');
+
+// Initialize the computation engine
+const engine = new ComputationEngine(state.gridSize);
+console.log('✓ Computation Engine initialized');
+
+// Animation loop variables
+let frameCount = 0;
+let lastLogTime = Date.now();
+const LOG_INTERVAL = 1000; // Log every 1 second
+
+/**
+ * Main game loop - advances the simulation and provides verification
+ */
+function gameLoop() {
+    // Advance the simulation by one time step
+    engine.step(state);
+    
+    frameCount++;
+    const currentTime = Date.now();
+    
+    // Periodically log verification data to show the simulation is evolving
+    if (currentTime - lastLogTime > LOG_INTERVAL) {
+        // Calculate current wave function statistics
+        let currentMagnitudeSum = 0;
+        let maxProbability = 0;
+        
+        for (let i = 0; i < state.psi.length; i += 2) {
+            const real = state.psi[i];
+            const imag = state.psi[i + 1];
+            const probability = real * real + imag * imag;
+            currentMagnitudeSum += probability;
+            maxProbability = Math.max(maxProbability, probability);
+        }
+        
+        console.log(`Frame ${frameCount}: Evolution verification`);
+        console.log('  Current psi sample:', state.psi.slice(0, 8));
+        console.log('  Normalization:', currentMagnitudeSum.toFixed(6));
+        console.log('  Max probability density:', maxProbability.toFixed(6));
+        console.log('  FPS estimate:', (frameCount * 1000 / (currentTime - (lastLogTime - LOG_INTERVAL))).toFixed(1));
+        
+        lastLogTime = currentTime;
+    }
+    
+    // Continue the animation loop
+    requestAnimationFrame(gameLoop);
+}
+
+// Start the main animation loop
+console.log('✓ Starting Milestone 2: The Evolving Engine');
+console.log('Wave function is now evolving - check console logs for verification');
+gameLoop();
