@@ -6,8 +6,6 @@
 /** Grid size for the simulation (must be power of 2 for FFT) */
 export const GRID_SIZE = 256;
 
-/** Time step for simulation - critical for stability */
-export const DT = 0.005;
 
 /** Reduced Planck constant (set to 1 for simplicity) */
 export const HBAR = 1;

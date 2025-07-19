@@ -174,14 +174,14 @@ export class UIController {
             this.state.resetWaveFunction();
         });
 
-        // Speed slider
-        const speedSlider = document.getElementById('speed-slider');
-        const speedValue = document.getElementById('speed-value');
+        // Time Step (dt) slider
+        const dtSlider = document.getElementById('dt-slider');
+        const dtValue = document.getElementById('dt-value');
 
-        speedSlider.addEventListener('input', (e) => {
-            const newSpeed = parseInt(e.target.value);
-            this.state.params.speed = newSpeed;
-            speedValue.textContent = newSpeed;
+        dtSlider.addEventListener('input', (e) => {
+            const newDt = parseFloat(e.target.value);
+            this.state.params.dt = newDt;
+            dtValue.textContent = newDt.toFixed(3);
         });
 
         // Mouse Mode radio buttons

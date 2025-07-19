@@ -17,7 +17,9 @@ export class Renderer {
             height: canvasElement.height,
             format: 'rgba',
             type: 'uint8',
-            data: null
+            data: null,
+            mag: 'linear',
+            min: 'linear'
         });
 
         // Create texture for potential barriers
@@ -26,7 +28,9 @@ export class Renderer {
             height: canvasElement.height,
             format: 'rgba',
             type: 'uint8',
-            data: null
+            data: null,
+            mag: 'linear',
+            min: 'linear'
         });
 
         // Pre-allocate texture data buffers for performance (using bytes)

@@ -1,4 +1,3 @@
-// src/ComputationEngine.js
 import * as C from './constants.js';
 import { fft, ifft } from './fft.js';
 
@@ -27,9 +26,9 @@ export class ComputationEngine {
      * @param {SimulationState} state - The simulation state to advance
      */
     step(state) {
-        this._applyPotential(state, C.DT / 2.0);
+        this._applyPotential(state, state.params.dt / 2.0);
         this._applyKinetic(state);
-        this._applyPotential(state, C.DT / 2.0);
+        this._applyPotential(state, state.params.dt / 2.0);
     }
     
     /**
@@ -76,7 +75,7 @@ export class ComputationEngine {
             const T = state.kineticOperatorK[i];
             
             // Calculate the phase rotation: phi = -T * dt / hbar
-            const phase = -T * C.DT / C.HBAR;
+            const phase = -T * state.params.dt / C.HBAR;
             const cosP = Math.cos(phase);
             const sinP = Math.sin(phase);
             

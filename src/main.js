@@ -26,16 +26,10 @@ uiController.updateScaling();
 /**
  * Main animation loop - advances simulation and renders each frame
  * Uses requestAnimationFrame for smooth 60+ FPS performance
- * Speed control allows multiple simulation steps per frame
  * @private
  */
 function gameLoop() {
-    // Execute multiple simulation steps based on speed setting
-    const speed = state.params.speed;
-    for (let i = 0; i < speed; i++) {
-        engine.step(state);
-    }
-    
+    engine.step(state);
     renderer.draw(state);
     requestAnimationFrame(gameLoop);
 }
