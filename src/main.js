@@ -1,8 +1,8 @@
-import * as C from './constants.js';
-import { SimulationState } from './SimulationState.js';
-import { ComputationEngine } from './ComputationEngine.js';
-import { Renderer } from './Renderer.js';
-import { UIController } from './UIController.js';
+import * as C from "./constants.js";
+import { SimulationState } from "./SimulationState.js";
+import { ComputationEngine } from "./ComputationEngine.js";
+import { Renderer } from "./Renderer.js";
+import { UIController } from "./UIController.js";
 
 /**
  * Main application entry point for the Interactive 2D Quantum Simulator
@@ -10,7 +10,7 @@ import { UIController } from './UIController.js';
  */
 
 // Set canvas size to match simulation grid
-const canvas = document.getElementById('sim-canvas');
+const canvas = document.getElementById("sim-canvas");
 canvas.width = C.GRID_SIZE;
 canvas.height = C.GRID_SIZE;
 
@@ -29,21 +29,21 @@ uiController.updateScaling();
  * @param {SimulationState} state - The simulation state to modify
  */
 function applyAbsorbingBoundaries(state) {
-    const width = state.gridSize.width;
-    const height = state.gridSize.height;
-    const psi = state.psi;
+  const width = state.gridSize.width;
+  const height = state.gridSize.height;
+  const psi = state.psi;
 
-    // Apply absorbing boundaries by zeroing border cells
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < width; j++) {
-            // Check if we're at any border
-            if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
-                const idx = (i * width + j) * 2;
-                psi[idx] = 0.0;     // Real component
-                psi[idx + 1] = 0.0; // Imaginary component
-            }
-        }
+  // Apply absorbing boundaries by zeroing border cells
+  for (let i = 0; i < height; i++) {
+    for (let j = 0; j < width; j++) {
+      // Check if we're at any border
+      if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+        const idx = (i * width + j) * 2;
+        psi[idx] = 0.0; // Real component
+        psi[idx + 1] = 0.0; // Imaginary component
+      }
     }
+  }
 }
 
 /**
@@ -52,10 +52,10 @@ function applyAbsorbingBoundaries(state) {
  * @private
  */
 function gameLoop() {
-    engine.step(state);
-    applyAbsorbingBoundaries(state);
-    renderer.draw(state);
-    requestAnimationFrame(gameLoop);
+  engine.step(state);
+  applyAbsorbingBoundaries(state);
+  renderer.draw(state);
+  requestAnimationFrame(gameLoop);
 }
 
 // Initialize application
