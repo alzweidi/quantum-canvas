@@ -51,6 +51,7 @@ export class Renderer {
                 precision mediump float;
                 uniform sampler2D psiTexture;
                 uniform sampler2D potentialTexture;
+                uniform float u_brightness;
                 varying vec2 uv;
 
                 // Standard HSL to RGB conversion
@@ -73,7 +74,7 @@ export class Renderer {
                     float hue = (phase / (2.0 * 3.14159)) + 0.5;
 
                     // Map magnitude to lightness for a nice visual effect
-                    float lightness = smoothstep(0.0, 0.15, magnitude);
+                    float lightness = smoothstep(0.0, 0.15, magnitude) * u_brightness;
 
                     // Get wave function color
                     vec3 waveColor = hsl2rgb(vec3(hue, 1.0, lightness));
@@ -103,7 +104,8 @@ export class Renderer {
             // Uniforms - pass wave function and potential textures
             uniforms: {
                 psiTexture: this.psiTexture,
-                potentialTexture: this.potentialTexture
+                potentialTexture: this.potentialTexture,
+                u_brightness: this.regl.prop('brightness')
             },
 
             // Draw 6 vertices (2 triangles = fullscreen quad)
@@ -157,7 +159,7 @@ export class Renderer {
             depth: 1
         });
 
-        // Execute the draw command
-        this.drawCommand();
+        // Execute the draw command with brightness parameter
+        this.drawCommand({ brightness: state.params.brightness });
     }
 }

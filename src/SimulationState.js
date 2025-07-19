@@ -12,6 +12,14 @@ export class SimulationState {
     constructor() {
         this.gridSize = { width: C.GRID_SIZE, height: C.GRID_SIZE };
 
+        // Tunable parameters for real-time physics control
+        this.params = {
+            px: C.P_X,           // Momentum in x-direction
+            py: C.P_Y,           // Momentum in y-direction
+            sigma: C.SIGMA,      // Wave packet width
+            brightness: 1.0      // Visualization brightness
+        };
+
         // Interleaved complex arrays: [real0, imag0, real1, imag1, ...]
         this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
@@ -79,12 +87,12 @@ export class SimulationState {
                 const x = i * dx;
                 const y = j * dy;
                 
-                // Gaussian envelope
-                const gaussianArg = -((x - x0) * (x - x0) + (y - y0) * (y - y0)) / (2.0 * C.SIGMA * C.SIGMA);
+                // Gaussian envelope using tunable parameters
+                const gaussianArg = -((x - x0) * (x - x0) + (y - y0) * (y - y0)) / (2.0 * this.params.sigma * this.params.sigma);
                 const amplitude = Math.exp(gaussianArg);
                 
-                // Phase factor
-                const phaseArg = (C.P_X * x + C.P_Y * y) / C.HBAR;
+                // Phase factor using tunable momentum parameters
+                const phaseArg = (this.params.px * x + this.params.py * y) / C.HBAR;
                 const real = amplitude * Math.cos(phaseArg);
                 const imag = amplitude * Math.sin(phaseArg);
                 

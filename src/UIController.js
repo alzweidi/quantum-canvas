@@ -1,3 +1,5 @@
+import { PRESETS } from './presets.js';
+
 /**
  * UIController class - Handles all user interactions and updates the simulation state
  * Allows users to draw potential barriers by clicking and dragging on canvas
@@ -95,6 +97,18 @@ export class UIController {
             this.clearWalls();
         });
 
+        // Preset experiment buttons
+        const doubleSlitButton = document.getElementById('double-slit-button');
+        const tunnelingButton = document.getElementById('tunneling-button');
+
+        doubleSlitButton.addEventListener('click', () => {
+            this.applyPreset('DOUBLE_SLIT');
+        });
+
+        tunnelingButton.addEventListener('click', () => {
+            this.applyPreset('TUNNELING');
+        });
+
         // Brush size slider
         const brushSlider = document.getElementById('brush-slider');
         const brushSizeValue = document.getElementById('brush-size-value');
@@ -103,6 +117,49 @@ export class UIController {
             const newSize = parseInt(e.target.value);
             this.setBrushSize(newSize);
             brushSizeValue.textContent = newSize;
+        });
+
+        // Brightness slider
+        const brightnessSlider = document.getElementById('brightness-slider');
+        const brightnessValue = document.getElementById('brightness-value');
+
+        brightnessSlider.addEventListener('input', (e) => {
+            const newBrightness = parseFloat(e.target.value);
+            this.state.params.brightness = newBrightness;
+            brightnessValue.textContent = newBrightness.toFixed(1);
+        });
+
+        // Momentum X slider
+        const pxSlider = document.getElementById('px-slider');
+        const pxValue = document.getElementById('px-value');
+
+        pxSlider.addEventListener('input', (e) => {
+            const newPx = parseInt(e.target.value);
+            this.state.params.px = newPx;
+            pxValue.textContent = newPx;
+            this.state.resetWaveFunction();
+        });
+
+        // Momentum Y slider
+        const pySlider = document.getElementById('py-slider');
+        const pyValue = document.getElementById('py-value');
+
+        pySlider.addEventListener('input', (e) => {
+            const newPy = parseInt(e.target.value);
+            this.state.params.py = newPy;
+            pyValue.textContent = newPy;
+            this.state.resetWaveFunction();
+        });
+
+        // Packet Width slider
+        const sigmaSlider = document.getElementById('sigma-slider');
+        const sigmaValue = document.getElementById('sigma-value');
+
+        sigmaSlider.addEventListener('input', (e) => {
+            const newSigma = parseInt(e.target.value);
+            this.state.params.sigma = newSigma;
+            sigmaValue.textContent = newSigma;
+            this.state.resetWaveFunction();
         });
 
         // Window resize handler for responsive coordinate mapping
@@ -192,6 +249,29 @@ export class UIController {
      */
     setBrushSize(size) {
         this.brushSize = Math.max(1, Math.min(20, size)); // Clamp between 1 and 20
+    }
+
+    /**
+     * Apply a preset quantum experiment configuration
+     * @param {string} presetName - The name of the preset to apply
+     */
+    applyPreset(presetName) {
+        // First clear any existing walls
+        this.clearWalls();
+
+        // Get the preset configuration
+        const preset = PRESETS[presetName];
+        if (!preset) {
+            console.warn(`Unknown preset: ${presetName}`);
+            return;
+        }
+
+        // Apply the preset's barrier pattern
+        preset.draw(
+            this.state.potential,
+            this.state.gridSize.width,
+            this.state.gridSize.height
+        );
     }
 
     /**
