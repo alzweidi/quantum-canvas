@@ -1,23 +1,11 @@
-/**
- * @fileoverview Physical and simulation constants for the quantum simulator
- * All simulation parameters are centralized here for easy tuning
- */
-
-/** Grid size for the simulation (must be power of 2 for FFT) */
 export const GRID_SIZE = 256;
-
-
-/** Reduced Planck constant (set to 1 for simplicity) */
 export const HBAR = 1;
-
-/** Particle mass (set to 1 for simplicity) */
 export const MASS = 1;
-
-/** Initial width of the Gaussian wave packet */
-export const SIGMA = 15.0;
-
-/** Initial momentum in x-direction */
-export const P_X = 60.0;
-
-/** Initial momentum in y-direction */
-export const P_Y = 0.0;
+export const INITIAL_DT = 0.005;
+export const INITIAL_SIGMA = 15.0;
+export const INITIAL_P_X = 60.0;
+export const INITIAL_P_Y = 0.0;
+export const INITIAL_X0 = GRID_SIZE / 4;
+export const INITIAL_Y0 = GRID_SIZE / 2;
+export const POTENTIAL_STRENGTH = 100.0;
+export const BORDER_STRENGTH = 1e6;

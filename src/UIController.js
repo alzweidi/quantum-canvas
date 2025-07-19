@@ -1,237 +1,115 @@
-import { PRESETS } from './presets.js';
-
-/**
- * UIController class - Handles all user interactions and updates the simulation state
- * Allows users to draw potential barriers by clicking and dragging on canvas
- */
 export class UIController {
-    /**
-     * Initialize the UI controller with mouse interaction
-     * @param {HTMLCanvasElement} canvasElement - The canvas to listen for mouse events
-     * @param {SimulationState} state - The simulation state to modify
-     */
-    constructor(canvasElement, state) {
-        this.canvas = canvasElement;
+    constructor(canvas, state) {
+        this.canvas = canvas;
         this.state = state;
-        this.isDrawing = false;
-        this.brushSize = 5; // Radius of the drawing brush in grid units (matches HTML default)
-        
-        // Mouse mode tracking
-        this.mouseMode = 'draw'; // 'draw' or 'velocity'
-        this.velocityStartPos = null; // For velocity mode tracking
-
-        // Initial scaling - will be updated dynamically based on actual display size
-        this.scaleX = 1.0;
-        this.scaleY = 1.0;
-
+        this.brushSize = 5;
+        this.mouseMode = 'draw'; // 'draw', 'drag', 'throw'
+        this.isDragging = false;
+        this.startDragPos = { x: 0, y: 0 };
         this._setupEventListeners();
+        this.updateScaling();
     }
 
-    /**
-     * Set up all event listeners for UI interactions
-     * @private
-     */
     _setupEventListeners() {
-        // Prevent context menu on right click
-        this.canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
+        // Mouse Mode Radio Buttons
+        document.getElementsByName('mouseMode').forEach(radio => {
+            radio.addEventListener('change', (e) => this.mouseMode = e.target.value);
         });
 
-        // Mouse down - start drawing, velocity setting, or move packet
-        this.canvas.addEventListener('mousedown', (e) => {
-            if (this.mouseMode === 'draw') {
-                this.isDrawing = true;
-                this._drawAtPosition(e);
-            } else if (this.mouseMode === 'velocity') {
-                this._startVelocitySelection(e);
-            } else if (this.mouseMode === 'move') {
-                this._setStartPosition(e);
-            }
-        });
+        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+        this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
+        this.canvas.addEventListener('mouseleave', () => this.isDragging = false);
+        window.addEventListener('resize', this.updateScaling.bind(this));
 
-        // Mouse move - continue drawing if mouse is down
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.isDrawing && this.mouseMode === 'draw') {
-                this._drawAtPosition(e);
-            }
-        });
-
-        // Mouse up - stop drawing or complete velocity setting
-        this.canvas.addEventListener('mouseup', (e) => {
-            if (this.mouseMode === 'draw') {
-                this.isDrawing = false;
-            } else if (this.mouseMode === 'velocity' && this.velocityStartPos) {
-                this._completeVelocitySelection(e);
-            }
-        });
-
-        // Mouse leave - stop drawing if mouse leaves canvas
-        this.canvas.addEventListener('mouseleave', () => {
-            this.isDrawing = false;
-        });
-
-        // Touch support for mobile devices
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.isDrawing = true;
-            const touch = e.touches[0];
-            const mouseEvent = new MouseEvent('mousedown', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            this._drawAtPosition(mouseEvent);
-        });
-
-        this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            if (this.isDrawing) {
-                const touch = e.touches[0];
-                const mouseEvent = new MouseEvent('mousemove', {
-                    clientX: touch.clientX,
-                    clientY: touch.clientY
-                });
-                this._drawAtPosition(mouseEvent);
-            }
-        });
-
-        this.canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            this.isDrawing = false;
-        });
-
-        // UI Control buttons
-        const resetButton = document.getElementById('reset-button');
-        const clearButton = document.getElementById('clear-button');
-
-        resetButton.addEventListener('click', () => {
-            this.resetSimulation();
-        });
-
-        clearButton.addEventListener('click', () => {
-            this.clearWalls();
-        });
-
-        // Preset experiment buttons
-        const doubleSlitButton = document.getElementById('double-slit-button');
-        const tunnelingButton = document.getElementById('tunneling-button');
-
-        doubleSlitButton.addEventListener('click', () => {
-            this.applyPreset('DOUBLE_SLIT');
-        });
-
-        tunnelingButton.addEventListener('click', () => {
-            this.applyPreset('TUNNELING');
-        });
-
-        // Brush size slider
-        const brushSlider = document.getElementById('brush-slider');
-        const brushSizeValue = document.getElementById('brush-size-value');
-
-        brushSlider.addEventListener('input', (e) => {
-            const newSize = parseInt(e.target.value);
-            this.setBrushSize(newSize);
-            brushSizeValue.textContent = newSize;
-        });
-
-        // Brightness slider
-        const brightnessSlider = document.getElementById('brightness-slider');
-        const brightnessValue = document.getElementById('brightness-value');
-
-        brightnessSlider.addEventListener('input', (e) => {
-            const newBrightness = parseFloat(e.target.value);
-            this.state.params.brightness = newBrightness;
-            brightnessValue.textContent = newBrightness.toFixed(1);
-        });
-
-        // Momentum X slider
-        const pxSlider = document.getElementById('px-slider');
-        const pxValue = document.getElementById('px-value');
-
-        pxSlider.addEventListener('input', (e) => {
-            const newPx = parseInt(e.target.value);
-            this.state.params.px = newPx;
-            pxValue.textContent = newPx;
+        // Other controls
+        document.getElementById('reset-button').addEventListener('click', () => {
             this.state.resetWaveFunction();
         });
-
-        // Momentum Y slider
-        const pySlider = document.getElementById('py-slider');
-        const pyValue = document.getElementById('py-value');
-
-        pySlider.addEventListener('input', (e) => {
-            const newPy = parseInt(e.target.value);
-            this.state.params.py = newPy;
-            pyValue.textContent = newPy;
-            this.state.resetWaveFunction();
+        document.getElementById('clear-button').addEventListener('click', () => {
+            this.state.potential.fill(0);
+            this.state._createReflectiveBoundary();
         });
-
-        // Packet Width slider
-        const sigmaSlider = document.getElementById('sigma-slider');
-        const sigmaValue = document.getElementById('sigma-value');
-
-        sigmaSlider.addEventListener('input', (e) => {
-            const newSigma = parseInt(e.target.value);
-            this.state.params.sigma = newSigma;
-            sigmaValue.textContent = newSigma;
-            this.state.resetWaveFunction();
-        });
-
-        // Time Step (dt) slider
-        const dtSlider = document.getElementById('dt-slider');
-        const dtValue = document.getElementById('dt-value');
-
-        dtSlider.addEventListener('input', (e) => {
-            const newDt = parseFloat(e.target.value);
-            this.state.params.dt = newDt;
-            dtValue.textContent = newDt.toFixed(3);
-        });
-
-        // Mouse Mode radio buttons
-        const mouseModeRadios = document.querySelectorAll('input[name="mouse-mode"]');
         
-        mouseModeRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.mouseMode = e.target.value;
-            });
-        });
-
-        // Window resize handler for responsive coordinate mapping
-        window.addEventListener('resize', () => {
-            this.updateScaling();
+        // Sliders
+        this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val));
+        this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
+        this._setupSlider('dt-slider', 'dt-value', (val) => this.state.params.dt = parseFloat(val), 3);
+        this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val));
+        this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val));
+        this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val));
+    }
+    
+    _setupSlider(sliderId, valueId, callback, precision = 0) {
+        const slider = document.getElementById(sliderId);
+        const valueSpan = document.getElementById(valueId);
+        slider.addEventListener('input', (e) => {
+            const value = e.target.value;
+            callback(value);
+            valueSpan.textContent = parseFloat(value).toFixed(precision);
         });
     }
 
-    /**
-     * Draw a potential barrier at the mouse position
-     * @param {MouseEvent} event - The mouse event containing position information
-     * @private
-     */
-    _drawAtPosition(event) {
+    _getGridPos(event) {
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Convert from displayed canvas coordinates to grid coordinates
-        // Use the actual displayed dimensions (rect) not internal resolution
-        const scaleX = this.state.gridSize.width / rect.width;
-        const scaleY = this.state.gridSize.height / rect.height;
-        
-        const gridX = Math.floor(mouseX * scaleX);
-        // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
-        const gridY = Math.floor((rect.height - mouseY) * scaleY);
-
-        // Apply barrier with brush size
-        this._applyBrush(gridX, gridY);
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const gridX = Math.floor(x * this.scaleX);
+        const gridY = Math.floor((rect.height - y) * this.scaleY);
+        return { gridX, gridY };
     }
 
-    /**
-     * Apply potential barrier in a circular brush pattern
-     * @param {number} centerX - Center X coordinate in grid units
-     * @param {number} centerY - Center Y coordinate in grid units
-     * @private
-     */
-    _applyBrush(centerX, centerY) {
-        const potentialStrength = 100.0; // High potential value to create barriers
+    _handleMouseDown(event) {
+        this.isDragging = true;
+        const { gridX, gridY } = this._getGridPos(event);
+        this.startDragPos = { x: gridX, y: gridY, screenX: event.clientX, screenY: event.clientY };
+
+        if (this.mouseMode === 'draw') {
+            this._applyBrush(gridX, gridY, event.buttons === 2); // buttons===2 is right-click
+        }
+    }
+
+    _handleMouseMove(event) {
+        if (!this.isDragging) return;
+        const { gridX, gridY } = this._getGridPos(event);
+        
+        if (this.mouseMode === 'draw') {
+            this._applyBrush(gridX, gridY, event.buttons === 2);
+        } else if (this.mouseMode === 'drag') {
+            const dx = Math.floor((event.clientX - this.startDragPos.screenX) * this.scaleX);
+            const dy = -Math.floor((event.clientY - this.startDragPos.screenY) * this.scaleY);
+            if (dx !== 0 || dy !== 0) {
+                this.state.shiftWaveFunction(dx, dy);
+                this.startDragPos.screenX = event.clientX;
+                this.startDragPos.screenY = event.clientY;
+            }
+        }
+    }
+
+    _handleMouseUp(event) {
+        if (!this.isDragging) return;
+        this.isDragging = false;
+        const { gridX, gridY } = this._getGridPos(event);
+
+        if (this.mouseMode === 'throw') {
+            const dx = gridX - this.startDragPos.x;
+            const dy = gridY - this.startDragPos.y;
+            this.state.params.x0 = this.startDragPos.x;
+            this.state.params.y0 = this.startDragPos.y;
+            this.state.params.px = dx * 2.0; // Scaling factor for good feel
+            this.state.params.py = dy * 2.0;
+            this.state.resetWaveFunction();
+            // Update UI sliders to reflect new momentum
+            document.getElementById('px-slider').value = this.state.params.px;
+            document.getElementById('py-slider').value = this.state.params.py;
+            document.getElementById('px-value').textContent = this.state.params.px;
+            document.getElementById('py-value').textContent = this.state.params.py;
+        }
+    }
+    
+    _applyBrush(centerX, centerY, isErasing) {
+        const potentialStrength = isErasing ? 0.0 : 100.0;
         const brushRadius = this.brushSize;
 
         // Apply circular brush pattern
@@ -244,9 +122,9 @@ export class UIController {
                     const x = centerX + dx;
                     const y = centerY + dy;
 
-                    // Check bounds
-                    if (x >= 0 && x < this.state.gridSize.width && 
-                        y >= 0 && y < this.state.gridSize.height) {
+                    // Check bounds and avoid overwriting boundary potential
+                    if (x >= 1 && x < this.state.gridSize.width - 1 && 
+                        y >= 1 && y < this.state.gridSize.height - 1) {
                         
                         const index = y * this.state.gridSize.width + x;
                         
@@ -259,138 +137,9 @@ export class UIController {
         }
     }
 
-    /**
-     * Clear all potential barriers from the simulation
-     */
-    clearWalls() {
-        for (let i = 0; i < this.state.potential.length; i++) {
-            this.state.potential[i] = 0.0;
-        }
-    }
-
-    /**
-     * Reset the entire simulation to initial state
-     */
-    resetSimulation() {
-        this.state.resetWaveFunction();
-        this.clearWalls();
-    }
-
-    /**
-     * Set the brush size for drawing barriers
-     * @param {number} size - New brush size in grid units
-     */
-    setBrushSize(size) {
-        this.brushSize = Math.max(1, Math.min(20, size)); // Clamp between 1 and 20
-    }
-
-    /**
-     * Apply a preset quantum experiment configuration
-     * @param {string} presetName - The name of the preset to apply
-     */
-    applyPreset(presetName) {
-        // First clear any existing walls
-        this.clearWalls();
-
-        // Get the preset configuration
-        const preset = PRESETS[presetName];
-        if (!preset) {
-            console.warn(`Unknown preset: ${presetName}`);
-            return;
-        }
-
-        // Apply the preset's barrier pattern
-        preset.draw(
-            this.state.potential,
-            this.state.gridSize.width,
-            this.state.gridSize.height
-        );
-    }
-
-    /**
-     * Start velocity selection mode - record starting position
-     * @param {MouseEvent} event - The mouse event containing position information
-     * @private
-     */
-    _startVelocitySelection(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Store starting position for velocity calculation
-        this.velocityStartPos = { x: mouseX, y: mouseY };
-    }
-
-    /**
-     * Complete velocity selection - calculate vector and set wave packet velocity
-     * @param {MouseEvent} event - The mouse event containing end position
-     * @private
-     */
-    _completeVelocitySelection(event) {
-        if (!this.velocityStartPos) return;
-
-        const rect = this.canvas.getBoundingClientRect();
-        const endX = event.clientX - rect.left;
-        const endY = event.clientY - rect.top;
-
-        // Calculate drag vector
-        const deltaX = endX - this.velocityStartPos.x;
-        const deltaY = endY - this.velocityStartPos.y;
-
-        // Convert to momentum values with appropriate scaling
-        // Scale factor to map pixel distance to reasonable momentum range
-        const momentumScale = 2.0;
-        const newPx = Math.round(deltaX * momentumScale);
-        const newPy = Math.round(-deltaY * momentumScale); // Negative because Y increases downward in screen space
-
-        // Clamp momentum values to slider ranges
-        this.state.params.px = Math.max(-150, Math.min(150, newPx));
-        this.state.params.py = Math.max(-150, Math.min(150, newPy));
-
-        // Update UI displays
-        document.getElementById('px-value').textContent = this.state.params.px;
-        document.getElementById('py-value').textContent = this.state.params.py;
-        document.getElementById('px-slider').value = this.state.params.px;
-        document.getElementById('py-slider').value = this.state.params.py;
-
-        // Apply new momentum to wave function
-        this.state.resetWaveFunction();
-
-        // Clear starting position
-        this.velocityStartPos = null;
-    }
-
-    /**
-     * Set the start position for wave packet (applied on next reset)
-     * @param {MouseEvent} event - The mouse event containing position information
-     * @private
-     */
-    _setStartPosition(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-
-        // Convert from displayed canvas coordinates to grid coordinates
-        const scaleX = this.state.gridSize.width / rect.width;
-        const scaleY = this.state.gridSize.height / rect.height;
-        
-        const gridX = Math.floor(mouseX * scaleX);
-        // Flip Y coordinate: browser Y=0 at top, grid Y=0 at bottom
-        const gridY = Math.floor((rect.height - mouseY) * scaleY);
-
-        // Clamp coordinates to valid grid bounds
-        this.state.params.x0 = Math.max(0, Math.min(this.state.gridSize.width - 1, gridX));
-        this.state.params.y0 = Math.max(0, Math.min(this.state.gridSize.height - 1, gridY));
-
-        // Note: Does not call resetWaveFunction() - position will be applied on next reset
-        console.log(`Start position set to (${this.state.params.x0}, ${this.state.params.y0})`);
-    }
-
-    /**
-     * Update canvas scaling if canvas size changes
-     */
     updateScaling() {
-        this.scaleX = this.state.gridSize.width / this.canvas.width;
-        this.scaleY = this.state.gridSize.height / this.canvas.height;
+        const rect = this.canvas.getBoundingClientRect();
+        this.scaleX = this.state.gridSize.width / rect.width;
+        this.scaleY = this.state.gridSize.height / rect.height;
     }
 }

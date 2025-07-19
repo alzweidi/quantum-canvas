@@ -1,35 +1,33 @@
 import * as C from './constants.js';
 
-/**
- * SimulationState class - The single source of truth for all simulation data
- * Manages the quantum wave function, potential field, and kinetic operator
- */
 export class SimulationState {
-    /**
-     * Initialize the simulation state with wave function and operators
-     * Creates normalized Gaussian wave packet and precalculates kinetic operator
-     */
     constructor() {
         this.gridSize = { width: C.GRID_SIZE, height: C.GRID_SIZE };
-
-        // Tunable parameters for real-time physics control
         this.params = {
-            px: C.P_X,           // Momentum in x-direction
-            py: C.P_Y,           // Momentum in y-direction
-            sigma: C.SIGMA,      // Wave packet width
-            brightness: 1.0,     // Visualization brightness
-            dt: 0.005,           // Time step for simulation (critical for stability)
-            x0: C.GRID_SIZE / 4, // Initial x position of wave packet
-            y0: C.GRID_SIZE / 2  // Initial y position of wave packet
+            x0: C.INITIAL_X0, y0: C.INITIAL_Y0,
+            px: C.INITIAL_P_X, py: C.INITIAL_P_Y,
+            sigma: C.INITIAL_SIGMA,
+            dt: C.INITIAL_DT, brightness: 1.0,
         };
-
-        // Interleaved complex arrays: [real0, imag0, real1, imag1, ...]
         this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
         this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
 
+        this._createReflectiveBoundary();
         this._precalculateKineticOperator();
         this.resetWaveFunction();
+    }
+    
+    _createReflectiveBoundary() {
+        const width = this.gridSize.width;
+        const height = this.gridSize.height;
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+                    this.potential[i * width + j] = C.BORDER_STRENGTH;
+                }
+            }
+        }
     }
 
     /**
@@ -76,9 +74,6 @@ export class SimulationState {
         const x0 = this.params.x0;
         const y0 = this.params.y0;
         
-        // Clear potential (no barriers initially)
-        this.potential.fill(0.0);
-        
         // Calculate normalization constant
         let norm = 0.0;
         const tempReal = new Array(size * size);
@@ -121,5 +116,25 @@ export class SimulationState {
                 this.psi[idx + 1] = tempImag[tempIdx] / norm;  // Imaginary part
             }
         }
+    }
+
+    shiftWaveFunction(dx, dy) {
+        const tempPsi = new Float32Array(this.psi.length).fill(0);
+        const width = this.gridSize.width;
+        const height = this.gridSize.height;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const newX = x + dx;
+                const newY = y + dy;
+                if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                    const oldIdx = (y * width + x) * 2;
+                    const newIdx = (newY * width + newX) * 2;
+                    tempPsi[newIdx] = this.psi[oldIdx];
+                    tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+                }
+            }
+        }
+        this.psi.set(tempPsi);
     }
 }
