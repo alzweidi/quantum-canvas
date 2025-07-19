@@ -86,7 +86,13 @@ console.log('✓ Renderer initialized');
 
 // Initialize the UI controller
 const uiController = new UIController(canvas, state);
-console.log('✓ UI Controller initialized');
+// Update scaling to ensure proper coordinate conversion
+uiController.updateScaling();
+console.log('✓ UI Controller initialized with scaling:', {
+    canvasSize: { w: canvas.width, h: canvas.height },
+    clientSize: { w: canvas.clientWidth, h: canvas.clientHeight },
+    gridSize: { w: state.gridSize.width, h: state.gridSize.height }
+});
 
 // Setup button event listeners
 const resetButton = document.getElementById('reset-button');

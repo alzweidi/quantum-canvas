@@ -101,6 +101,17 @@ export class UIController {
         const gridX = Math.floor(mouseX * this.scaleX);
         const gridY = Math.floor(mouseY * this.scaleY);
 
+        // Debug logging to verify coordinate conversion
+        if (Math.random() < 0.1) { // Log 10% of draw events to avoid spam
+            console.log('Draw event:', {
+                mouse: { x: mouseX, y: mouseY },
+                grid: { x: gridX, y: gridY },
+                canvas: { w: this.canvas.width, h: this.canvas.height },
+                client: { w: this.canvas.clientWidth, h: this.canvas.clientHeight },
+                scale: { x: this.scaleX, y: this.scaleY }
+            });
+        }
+
         // Apply barrier with brush size
         this._applyBrush(gridX, gridY);
     }

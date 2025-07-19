@@ -22,8 +22,18 @@ export class Renderer {
             data: null
         });
 
-        // Pre-allocate texture data buffer for performance (using bytes)
+        // Create texture for potential barriers
+        this.potentialTexture = this.regl.texture({
+            width: canvasElement.width,
+            height: canvasElement.height,
+            format: 'rgba',
+            type: 'uint8',
+            data: null
+        });
+
+        // Pre-allocate texture data buffers for performance (using bytes)
         this.textureDataBuffer = new Uint8Array(canvasElement.width * canvasElement.height * 4);
+        this.potentialDataBuffer = new Uint8Array(canvasElement.width * canvasElement.height * 4);
 
         // Create the main rendering command
         this.drawCommand = this.regl({
@@ -38,10 +48,11 @@ export class Renderer {
                 }
             `,
 
-            // Fragment shader - visualizes complex wave function
+            // Fragment shader - visualizes complex wave function with barrier overlay
             frag: `
                 precision mediump float;
                 uniform sampler2D psiTexture;
+                uniform sampler2D potentialTexture;
                 varying vec2 uv;
 
                 // Standard HSL to RGB conversion
@@ -66,7 +77,20 @@ export class Renderer {
                     // Map magnitude to lightness for a nice visual effect
                     float lightness = smoothstep(0.0, 0.15, magnitude);
 
-                    gl_FragColor = vec4(hsl2rgb(vec3(hue, 1.0, lightness)), 1.0);
+                    // Get wave function color
+                    vec3 waveColor = hsl2rgb(vec3(hue, 1.0, lightness));
+
+                    // Read potential barrier value (normalized to [0,1])
+                    float potential = texture2D(potentialTexture, uv).r;
+                    
+                    // Create barrier visualization (red overlay)
+                    vec3 barrierColor = vec3(1.0, 0.2, 0.2); // Red color for barriers
+                    float barrierOpacity = smoothstep(0.01, 0.5, potential);
+                    
+                    // Blend wave function with barrier overlay
+                    vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.8);
+
+                    gl_FragColor = vec4(finalColor, 1.0);
                 }
             `,
 
@@ -78,9 +102,10 @@ export class Renderer {
                 ]
             },
 
-            // Uniforms - pass wave function texture
+            // Uniforms - pass wave function and potential textures
             uniforms: {
-                psiTexture: this.psiTexture
+                psiTexture: this.psiTexture,
+                potentialTexture: this.potentialTexture
             },
 
             // Draw 6 vertices (2 triangles = fullscreen quad)
@@ -112,8 +137,22 @@ export class Renderer {
             this.textureDataBuffer[idx + 3] = 255;                              // Alpha
         }
 
+        // Pack potential barrier data into RGBA texture format
+        for (let i = 0; i < state.potential.length; i++) {
+            const idx = i * 4;        // RGBA texture index
+            
+            // Normalize potential (typically 0-100) to 0-255 range
+            const normalizedPotential = Math.min(255, Math.floor(state.potential[i] * 2.55));
+            
+            this.potentialDataBuffer[idx] = normalizedPotential;     // Potential -> R
+            this.potentialDataBuffer[idx + 1] = 0;                   // Green
+            this.potentialDataBuffer[idx + 2] = 0;                   // Blue  
+            this.potentialDataBuffer[idx + 3] = 255;                 // Alpha
+        }
+
         // Upload texture data to GPU
         this.psiTexture.subimage(this.textureDataBuffer);
+        this.potentialTexture.subimage(this.potentialDataBuffer);
 
         // Clear canvas and render
         this.regl.clear({
