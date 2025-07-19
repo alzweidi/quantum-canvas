@@ -1,53 +1,61 @@
-// A robust, iterative Cooley-Tukey FFT implementation
-// Operates in-place on interleaved Float32Arrays for maximum performance.
+// Simple, bulletproof FFT implementation
+// Uses the most straightforward approach to avoid any subtle bugs
 export function fft(real, imag) {
     const n = real.length;
-    if (n === 0) return;
+    if (n <= 1) return;
 
-    // Bit-reversal permutation
-    for (let i = 1, j = 0; i < n; i++) {
-        let bit = n >> 1;
-        for (; (j & bit) !== 0; bit >>= 1) {
-            j ^= bit;
+    // Bit-reverse the input
+    for (let i = 0; i < n; i++) {
+        let j = 0;
+        let temp = i;
+        for (let k = 0; k < Math.log2(n); k++) {
+            j = (j << 1) | (temp & 1);
+            temp >>= 1;
         }
-        j ^= bit;
-        if (i < j) {
+        if (j > i) {
             [real[i], real[j]] = [real[j], real[i]];
             [imag[i], imag[j]] = [imag[j], imag[i]];
         }
     }
 
     // Cooley-Tukey FFT
-    for (let len = 2; len <= n; len <<= 1) {
-        const halfLen = len >> 1;
-        const angle = -Math.PI / halfLen;
-        const w_real = Math.cos(angle);
-        const w_imag = Math.sin(angle);
+    for (let len = 2; len <= n; len *= 2) {
+        const halfLen = len / 2;
         for (let i = 0; i < n; i += len) {
-            let t_real = 1;
-            let t_imag = 0;
             for (let j = 0; j < halfLen; j++) {
-                const a_real = real[i + j];
-                const a_imag = imag[i + j];
-                const b_real = real[i + j + halfLen] * t_real - imag[i + j + halfLen] * t_imag;
-                const b_imag = real[i + j + halfLen] * t_imag + imag[i + j + halfLen] * t_real;
-                real[i + j] = a_real + b_real;
-                imag[i + j] = a_imag + b_imag;
-                real[i + j + halfLen] = a_real - b_real;
-                imag[i + j + halfLen] = a_imag - b_imag;
-                [t_real, t_imag] = [t_real * w_real - t_imag * w_imag, t_real * w_imag + t_imag * w_real];
+                const angle = -2 * Math.PI * j / len;
+                const wReal = Math.cos(angle);
+                const wImag = Math.sin(angle);
+                
+                const u = i + j;
+                const v = i + j + halfLen;
+                
+                const tReal = real[v] * wReal - imag[v] * wImag;
+                const tImag = real[v] * wImag + imag[v] * wReal;
+                
+                real[v] = real[u] - tReal;
+                imag[v] = imag[u] - tImag;
+                real[u] = real[u] + tReal;
+                imag[u] = imag[u] + tImag;
             }
         }
     }
 }
 
 export function ifft(real, imag) {
-    // IFFT is the conjugate of the FFT of the conjugate (no automatic scaling)
-    for (let i = 0; i < imag.length; i++) {
+    const n = real.length;
+    
+    // Conjugate input
+    for (let i = 0; i < n; i++) {
         imag[i] = -imag[i];
     }
+    
+    // Forward FFT
     fft(real, imag);
-    for (let i = 0; i < real.length; i++) {
-        imag[i] = -imag[i];
+    
+    // Conjugate output and normalize
+    for (let i = 0; i < n; i++) {
+        real[i] = real[i] / n;
+        imag[i] = -imag[i] / n;
     }
 }
