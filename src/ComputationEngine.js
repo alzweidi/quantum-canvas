@@ -44,21 +44,23 @@ export class ComputationEngine {
     }
 
     _applyKinetic(state) {
+        // 1. Transform to momentum space
         this._fft2D(state.psi, this.buffer1);
 
+        // 2. Apply the pre-calculated kinetic operator using complex multiplication
         for (let i = 0; i < this.buffer1.length; i += 2) {
-            const kineticEnergy = state.kineticOperatorK[i];
-            const phase = -kineticEnergy * C.DT / C.HBAR;
-            
-            const real = this.buffer1[i];
-            const imag = this.buffer1[i + 1];
-            const cosPhase = Math.cos(phase);
-            const sinPhase = Math.sin(phase);
+            const op_real = state.kineticOperatorK[i];
+            const op_imag = state.kineticOperatorK[i + 1];
 
-            this.buffer1[i] = real * cosPhase - imag * sinPhase;
-            this.buffer1[i + 1] = real * sinPhase + imag * cosPhase;
+            const psi_real = this.buffer1[i];
+            const psi_imag = this.buffer1[i + 1];
+
+            // Perform complex multiplication: psi' = psi * op
+            this.buffer1[i]     = psi_real * op_real - psi_imag * op_imag;
+            this.buffer1[i + 1] = psi_real * op_imag + psi_imag * op_real;
         }
 
+        // 3. Transform back to position space
         this._ifft2D(this.buffer1, state.psi);
     }
 
