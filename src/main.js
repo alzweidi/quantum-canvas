@@ -36,39 +36,7 @@ console.log('Wave function normalization check (should ≈ 1.0):', psiMagnitudeS
 // Sample kinetic operator values
 console.log('Kinetic operator sample:', state.kineticOperatorK.slice(0, 10));
 
-// Test FFT library availability
-console.log('Testing FFT library availability...');
-console.log('Available globals:', Object.keys(window).filter(key => 
-    key.toLowerCase().includes('fft') || 
-    key.toLowerCase().includes('dsp') || 
-    key.includes('FFT')));
-
-// Test different possible FFT constructors
-const fftTests = [
-    { name: 'FFT', test: () => typeof FFT !== 'undefined' ? new FFT(4) : null },
-    { name: 'DSP.FFT', test: () => typeof DSP !== 'undefined' && DSP.FFT ? new DSP.FFT(4, 44100) : null },
-    { name: 'window.FFT', test: () => typeof window.FFT !== 'undefined' ? new window.FFT(4) : null }
-];
-
-let fftAvailable = false;
-for (const { name, test } of fftTests) {
-    try {
-        const result = test();
-        if (result) {
-            console.log(`✓ ${name} constructor available and working`);
-            fftAvailable = true;
-            break;
-        }
-    } catch (error) {
-        console.log(`✗ ${name} test failed:`, error.message);
-    }
-}
-
-if (!fftAvailable) {
-    console.error('✗ No working FFT library found - this will block Milestone 2');
-    throw new Error('FFT library not available');
-}
-
+console.log('✓ Using self-contained FFT implementation');
 console.log('✓ Milestone 1: The Static State - Successfully initialized');
 
 // Set canvas size
