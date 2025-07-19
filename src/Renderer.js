@@ -9,7 +9,7 @@ export class Renderer {
      */
     constructor(canvasElement) {
         this.canvas = canvasElement;
-        this.regl = createREGL(canvasElement);
+        this.regl = window.createREGL(canvasElement);
 
         // Create texture for wave function data using unsigned bytes
         this.psiTexture = this.regl.texture({
