@@ -14,12 +14,11 @@ export class UIController {
         this.canvas = canvasElement;
         this.state = state;
         this.isDrawing = false;
-        this.brushSize = 6; // Radius of the drawing brush in grid units - increased for better visibility
+        this.brushSize = 3; // Radius of the drawing brush in grid units
 
-        // Calculate scaling factors for coordinate conversion
-        // Use actual canvas dimensions instead of display dimensions for accurate mapping
-        this.scaleX = this.state.gridSize.width / this.canvas.width;
-        this.scaleY = this.state.gridSize.height / this.canvas.height;
+        // Initial scaling - will be updated dynamically based on actual display size
+        this.scaleX = 1.0;
+        this.scaleY = 1.0;
 
         this._setupEventListeners();
         console.log('✓ UI Controller initialized with mouse interaction');
@@ -98,20 +97,22 @@ export class UIController {
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
 
-        // Convert mouse coordinates to grid coordinates
-        const gridX = Math.floor(mouseX * this.scaleX);
-        const gridY = Math.floor(mouseY * this.scaleY);
+        // Convert from displayed canvas coordinates to grid coordinates
+        // Use the actual displayed dimensions (rect) not internal resolution
+        const scaleX = this.state.gridSize.width / rect.width;
+        const scaleY = this.state.gridSize.height / rect.height;
+        
+        const gridX = Math.floor(mouseX * scaleX);
+        const gridY = Math.floor(mouseY * scaleY);
 
         // Debug logging to verify coordinate conversion
-        if (Math.random() < 0.1) { // Log 10% of draw events to avoid spam
-            console.log('Draw event:', {
-                mouse: { x: mouseX, y: mouseY },
-                grid: { x: gridX, y: gridY },
-                canvas: { w: this.canvas.width, h: this.canvas.height },
-                client: { w: this.canvas.clientWidth, h: this.canvas.clientHeight },
-                scale: { x: this.scaleX, y: this.scaleY }
-            });
-        }
+        console.log('Draw event:', {
+            mouse: { x: mouseX, y: mouseY },
+            grid: { x: gridX, y: gridY },
+            displayedSize: { w: rect.width, h: rect.height },
+            internalSize: { w: this.canvas.width, h: this.canvas.height },
+            scale: { x: scaleX, y: scaleY }
+        });
 
         // Apply barrier with brush size
         this._applyBrush(gridX, gridY);
