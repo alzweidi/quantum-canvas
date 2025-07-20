@@ -79,7 +79,7 @@ export class Renderer {
                     float hue = (phase / (2.0 * 3.14159)) + 0.5;
 
                     // Map magnitude to lightness for a nice visual effect
-                    float lightness = smoothstep(0.0, 0.15, magnitude) * u_brightness;
+                    float lightness = smoothstep(0.0, 0.4, magnitude) * u_brightness;
 
                     // Get wave function color
                     vec3 waveColor = hsl2rgb(vec3(hue, 1.0, lightness));
@@ -93,23 +93,6 @@ export class Renderer {
                     
                     // Blend wave function with barrier overlay - more prominent barriers
                     vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.9);
-
-                    // Add start position marker (crosshair)
-                    vec2 diff = abs(uv - u_startPos);
-                    float crosshair = 0.0;
-                    
-                    // Horizontal line
-                    if (diff.y < 0.003 && diff.x < 0.02) {
-                        crosshair = 1.0;
-                    }
-                    // Vertical line
-                    if (diff.x < 0.003 && diff.y < 0.02) {
-                        crosshair = 1.0;
-                    }
-                    
-                    // Blend crosshair with final color (faint white overlay)
-                    vec3 markerColor = vec3(1.0, 1.0, 1.0);
-                    finalColor = mix(finalColor, markerColor, crosshair * 0.3);
 
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
