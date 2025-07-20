@@ -1,95 +1,173 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Quantum Simulator</title>
-    <link rel="stylesheet" href="src/style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Quantum Laboratory</h3>
-        
-        <!-- Simulation Controls -->
-        <div class="control-section">
-            <h4>Simulation Controls</h4>
-            <div class="control-group button-group">
-                <button id="reset-button" class="control-button">Reset Simulation</button>
-                <button id="clear-button" class="control-button">Clear Walls</button>
-            </div>
-            
-            <!-- Experiment Presets -->
-            <div class="control-group preset-group">
-                <label class="section-label">Experiment Presets</label>
-                <div class="preset-buttons">
-                    <button id="double-slit-button" class="preset-button">
-                        <span class="preset-name">Double Slit</span>
-                        <span class="preset-desc">Wave Interference</span>
-                    </button>
-                    <button id="tunneling-button" class="preset-button">
-                        <span class="preset-name">Tunneling Barrier</span>
-                        <span class="preset-desc">Quantum Tunneling</span>
-                    </button>
-                </div>
-            </div>
+      <h3>Quantum Laboratory</h3>
+
+      <!-- Simulation Controls -->
+      <div class="control-section">
+        <h4>Simulation Controls</h4>
+        <div class="control-group button-group">
+          <button id="reset-button" class="control-button">
+            Reset Simulation
+          </button>
+          <button id="clear-button" class="control-button">Clear Walls</button>
         </div>
 
-        <!-- Mouse Interaction -->
-        <div class="control-section">
-            <h4>Mouse Interaction</h4>
-            <div class="control-group mouse-mode-group">
-                <div class="radio-group">
-                    <input type="radio" id="mode-draw" name="mouseMode" value="draw" checked>
-                    <label for="mode-draw">Draw/Erase</label>
-                    
-                    <input type="radio" id="mode-drag" name="mouseMode" value="drag">
-                    <label for="mode-drag">Drag Packet</label>
-                    
-                    <input type="radio" id="mode-nudge" name="mouseMode" value="nudge">
-                    <label for="mode-nudge">Nudge Packet</label>
-                </div>
-                <div class="mode-hint">
-                    <span id="mode-hint-text">Left-click: Draw barriers • Right-click: Erase</span>
-                </div>
-            </div>
+        <!-- Experiment Presets -->
+        <div class="control-group preset-group">
+          <label class="section-label">Experiment Presets</label>
+          <div class="preset-buttons">
+            <button id="double-slit-button" class="preset-button">
+              <span class="preset-name">Double Slit</span>
+              <span class="preset-desc">Wave Interference</span>
+            </button>
+            <button id="tunneling-button" class="preset-button">
+              <span class="preset-name">Tunneling Barrier</span>
+              <span class="preset-desc">Quantum Tunneling</span>
+            </button>
+          </div>
         </div>
+      </div>
 
-        <!-- Real-time Parameters -->
-        <div class="control-section">
-            <h4>Real-time Parameters</h4>
-            <div class="control-group">
-                <label for="brush-slider">Brush Size: <span id="brush-size-value" class="param-value">5</span></label>
-                <input type="range" min="1" max="25" value="5" id="brush-slider" class="param-slider">
-            </div>
-            <div class="control-group">
-                <label for="brightness-slider">Brightness: <span id="brightness-value" class="param-value">1.0</span></label>
-                <input type="range" min="0.1" max="5" value="1.0" step="0.1" id="brightness-slider" class="param-slider">
-            </div>
-            <div class="control-group">
-                <label for="dt-slider">Time Step (dt): <span id="dt-value" class="param-value">0.005</span></label>
-                <input type="range" min="0.001" max="0.02" value="0.005" step="0.001" id="dt-slider" class="param-slider">
-            </div>
-        </div>
+      <!-- Mouse Interaction -->
+      <div class="control-section">
+        <h4>Mouse Interaction</h4>
+        <div class="control-group mouse-mode-group">
+          <div class="radio-group">
+            <input
+              type="radio"
+              id="mode-draw"
+              name="mouseMode"
+              value="draw"
+              checked
+            />
+            <label for="mode-draw">Draw/Erase</label>
 
-        <!-- Initial State Configuration -->
-        <div class="control-section initial-state-section">
-            <h4>Initial State <span class="reset-note">(Applied on Reset)</span></h4>
-            <div class="control-group">
-                <label for="px-slider">Momentum X: <span id="px-value" class="param-value">60</span></label>
-                <input type="range" min="-150" max="150" value="60" id="px-slider" class="initial-param-slider">
-            </div>
-            <div class="control-group">
-                <label for="py-slider">Momentum Y: <span id="py-value" class="param-value">0</span></label>
-                <input type="range" min="-150" max="150" value="0" id="py-slider" class="initial-param-slider">
-            </div>
-            <div class="control-group">
-                <label for="sigma-slider">Packet Width: <span id="sigma-value" class="param-value">15</span></label>
-                <input type="range" min="5" max="30" value="15" id="sigma-slider" class="initial-param-slider">
-            </div>
+            <input type="radio" id="mode-drag" name="mouseMode" value="drag" />
+            <label for="mode-drag">Drag Packet</label>
+
+            <input
+              type="radio"
+              id="mode-nudge"
+              name="mouseMode"
+              value="nudge"
+            />
+            <label for="mode-nudge">Nudge Packet</label>
+          </div>
+          <div class="mode-hint">
+            <span id="mode-hint-text"
+              >Left-click: Draw barriers • Right-click: Erase</span
+            >
+          </div>
         </div>
+      </div>
+
+      <!-- Real-time Parameters -->
+      <div class="control-section">
+        <h4>Real-time Parameters</h4>
+        <div class="control-group">
+          <label for="brush-slider"
+            >Brush Size:
+            <span id="brush-size-value" class="param-value">5</span></label
+          >
+          <input
+            type="range"
+            min="1"
+            max="25"
+            value="5"
+            id="brush-slider"
+            class="param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="brightness-slider"
+            >Brightness:
+            <span id="brightness-value" class="param-value">1.0</span></label
+          >
+          <input
+            type="range"
+            min="0.1"
+            max="5"
+            value="1.0"
+            step="0.1"
+            id="brightness-slider"
+            class="param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="dt-slider"
+            >Time Step (dt):
+            <span id="dt-value" class="param-value">0.005</span></label
+          >
+          <input
+            type="range"
+            min="0.001"
+            max="0.02"
+            value="0.005"
+            step="0.001"
+            id="dt-slider"
+            class="param-slider"
+          />
+        </div>
+      </div>
+
+      <!-- Initial State Configuration -->
+      <div class="control-section initial-state-section">
+        <h4>
+          Initial State <span class="reset-note">(Applied on Reset)</span>
+        </h4>
+        <div class="control-group">
+          <label for="px-slider"
+            >Momentum X:
+            <span id="px-value" class="param-value">60</span></label
+          >
+          <input
+            type="range"
+            min="-150"
+            max="150"
+            value="60"
+            id="px-slider"
+            class="initial-param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="py-slider"
+            >Momentum Y: <span id="py-value" class="param-value">0</span></label
+          >
+          <input
+            type="range"
+            min="-150"
+            max="150"
+            value="0"
+            id="py-slider"
+            class="initial-param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="sigma-slider"
+            >Packet Width:
+            <span id="sigma-value" class="param-value">15</span></label
+          >
+          <input
+            type="range"
+            min="5"
+            max="30"
+            value="15"
+            id="sigma-slider"
+            class="initial-param-slider"
+          />
+        </div>
+      </div>
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>
-</body>
+  </body>
 </html>
