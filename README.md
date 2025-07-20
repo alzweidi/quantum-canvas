@@ -61,12 +61,12 @@ handles the quantum wave function (ψ), potential fields, and kinetic energy ope
 
 Initial Gaussian wave packet equation:
 
-\(\psi(x, y) = A e^{-\frac{(x - x_0)^2 + (y - y_0)^2}{2\sigma^2}} e^{i\frac{p_x x + p_y y}{\hbar}}\)
+$$\psi(x, y) = A e^{-\frac{(x - x_0)^2 + (y - y_0)^2}{2\sigma^2}} e^{i\frac{p_x x + p_y y}{\hbar}}$$
 
 - `_createReflectiveBoundary()` sets the boundary conditions.
 - `_precalculateKineticOperator()` precomputes the kinetic operator:
 
-\(T = \frac{\hbar^2 k^2}{2m}\)
+$$T = \frac{\hbar^2 k^2}{2m}$$
 
 - `resetWaveFunction()` initialises the Gaussian packet.
 
@@ -78,7 +78,7 @@ Initial Gaussian wave packet equation:
 
 Uses the Split-Step Fourier Method for quantum evolution:
 
-\(\psi(t+\Delta t) = e^{-iV\frac{\Delta t}{2\hbar}} e^{-iT\frac{\Delta t}{\hbar}} e^{-iV\frac{\Delta t}{2\hbar}} \psi(t)\)
+$$\psi(t+\Delta t) = e^{-iV\frac{\Delta t}{2\hbar}} e^{-iT\frac{\Delta t}{\hbar}} e^{-iV\frac{\Delta t}{2\hbar}} \psi(t)$$
 
 Key methods:
 
@@ -93,9 +93,9 @@ Key methods:
 
 ### fft.js 
 
-FFT: \(X_k = \sum_{n=0}^{N-1} x_n e^{-i \frac{2\pi}{N}kn}\)
+FFT: $$X_k = \sum_{n=0}^{N-1} x_n e^{-i \frac{2\pi}{N}kn}$$
 
-Inverse FFT: \(x_n = \frac{1}{N}\sum_{k=0}^{N-1} X_k e^{i \frac{2\pi}{N}kn}\)
+Inverse FFT: $$x_n = \frac{1}{N}\sum_{k=0}^{N-1} X_k e^{i \frac{2\pi}{N}kn}$$
 
 Implemented in-place to ensure maximum efficiency and avoid memory overhead.
 
@@ -137,7 +137,7 @@ Visual and interactive examples available in the **examples/** folder with video
 
 Handles interactions like drawing barriers and nudging wave packets:
 
-**"Nudge" Feature Physics:** Applying phase \(e^{i(\Delta p \cdot r)/\hbar}\) gives the quantum wave packet a momentum kick, demonstrating a quantum mechanical concept interactively.
+**"Nudge" Feature Physics:** Applying phase $e^{i(\Delta p \cdot r)/\hbar}$ gives the quantum wave packet a momentum kick, demonstrating a quantum mechanical concept interactively.
 
 ### presets.js
 
@@ -166,4 +166,3 @@ Contributions are very welcome Areas of particular interest:
 ---
 
 Enjoy playing around! Contributions, especially UI improvements lol, are very welcome
-
