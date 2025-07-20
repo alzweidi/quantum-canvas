@@ -19,8 +19,8 @@ export const PRESETS = {
             for (let x = barrierCenterX - barrierWidth / 2; x < barrierCenterX + barrierWidth / 2; x++) {
                 for (let y = 0; y < height; y++) {
                     // Check if the current y-position is within the bounds of either slit
-                    const inSlit1 = (y > slit1_CenterY - slitHeight / 2) && (y < slit1_CenterY + slitHeight / 2);
-                    const inSlit2 = (y > slit2_CenterY - slitHeight / 2) && (y < slit2_CenterY + slitHeight / 2);
+                    const inSlit1 = (y >= slit1_CenterY - slitHeight / 2) && (y < slit1_CenterY + slitHeight / 2);
+                    const inSlit2 = (y >= slit2_CenterY - slitHeight / 2) && (y < slit2_CenterY + slitHeight / 2);
 
                     // If the pixel is NOT in a slit, draw the barrier
                     if (!inSlit1 && !inSlit2) {
@@ -34,11 +34,11 @@ export const PRESETS = {
     TUNNELING: {
         description: "Shows quantum tunneling through a potential barrier.",
         draw: (potential, width, height) => {
-            const barrierCenterY = Math.floor(width / 2);
+            const barrierCenterX = Math.floor(width / 2);
             const barrierThickness = 5;
 
             for (let y = 0; y < height; y++) {
-                for (let x = barrierCenterY - barrierThickness / 2; x < barrierCenterY + barrierThickness / 2; x++) {
+                for (let x = barrierCenterX - barrierThickness / 2; x < barrierCenterX + barrierThickness / 2; x++) {
                     const idx = y * width + Math.floor(x);
                     potential[idx] = 100.0;
                 }

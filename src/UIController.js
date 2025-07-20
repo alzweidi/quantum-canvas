@@ -45,12 +45,12 @@ export class UIController {
         });
         
         // Sliders
-        this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val));
+        this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val, 10));
         this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
         this._setupSlider('dt-slider', 'dt-value', (val) => this.state.params.dt = parseFloat(val), 3);
-        this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val));
-        this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val));
-        this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val));
+        this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val, 10));
+        this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val, 10));
+        this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val, 10));
 
         // Live updates for initial state sliders - triggers wave function regeneration on release
         const initialParamSliders = document.querySelectorAll('.initial-param-slider');

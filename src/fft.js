@@ -10,10 +10,11 @@ export function fft(real, imag) {
     if (n <= 1) return;
 
     // Bit-reverse the input
+    const bitCount = Math.log2(n);
     for (let i = 0; i < n; i++) {
         let j = 0;
         let temp = i;
-        for (let k = 0; k < Math.log2(n); k++) {
+        for (let k = 0; k < bitCount; k++) {
             j = (j << 1) | (temp & 1);
             temp >>= 1;
         }
