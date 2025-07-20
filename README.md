@@ -11,7 +11,6 @@ Clone this repository to your local machine.
 Since this project uses ES Modules, it needs to be served by a local web server.
 
 - **Recommended**: Use the **Live Server extension** in Visual Studio Code:
-
   - Right-click on `index.html` and select **"Open with Live Server"**.
 
 - **Alternative**: Run a simple Python server:
@@ -27,27 +26,21 @@ python -m http.server
 The simulator follows a clear, modular structure divided into key logical components:
 
 - **Quantum Simulation Core**
-
   - `SimulationState.js`
   - `ComputationEngine.js`
 
 - **Mathematical Operations**
-
-  - `fft.js` *(My pride and joy a completely self-coded FFT implementation)*
+  - `fft.js` _(My pride and joy a completely self-coded FFT implementation)_
   - `constants.js`
 
 - **Visualisation & Rendering**
-
   - `Renderer.js`
 
-- **User Interface & Interaction** *(I'll admit it upfront: my web UI skills are... suboptimal. contributions here are more than welcome)*
-
+- **User Interface & Interaction** _(I'll admit it upfront: my web UI skills are... suboptimal. contributions here are more than welcome)_
   - `UIController.js`
   - `presets.js`
   - `index.html`
   - `style.css`
-
-
 
 ---
 
@@ -91,11 +84,11 @@ Key methods:
 
 ## Mathematical Operations
 
-### fft.js 
+### fft.js
 
-FFT: \(X_k = \sum_{n=0}^{N-1} x_n e^{-i \frac{2\pi}{N}kn}\)
+FFT: \(X*k = \sum*{n=0}^{N-1} x_n e^{-i \frac{2\pi}{N}kn}\)
 
-Inverse FFT: \(x_n = \frac{1}{N}\sum_{k=0}^{N-1} X_k e^{i \frac{2\pi}{N}kn}\)
+Inverse FFT: \(x*n = \frac{1}{N}\sum*{k=0}^{N-1} X_k e^{i \frac{2\pi}{N}kn}\)
 
 Implemented in-place to ensure maximum efficiency and avoid memory overhead.
 
@@ -161,9 +154,8 @@ Contributions are very welcome Areas of particular interest:
 
 ## Future Plans & Improvements
 
-*(I'm currently working on figuring out ways to improve graphics performance)*
+_(I'm currently working on figuring out ways to improve graphics performance)_
 
 ---
 
 Enjoy playing around! Contributions, especially UI improvements lol, are very welcome
-
