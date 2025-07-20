@@ -86,7 +86,8 @@ export class UIController {
         this.startDragPos = { x: gridX, y: gridY, screenX: event.clientX, screenY: event.clientY };
 
         if (this.mouseMode === 'draw') {
-            this._applyBrush(gridX, gridY, event.buttons === 2); // buttons===2 is right-click
+            const isErasing = (event.buttons & 2) !== 0; // Use bitwise AND to check for right mouse button
+            this._applyBrush(gridX, gridY, isErasing);
         }
     }
 
@@ -95,7 +96,8 @@ export class UIController {
         const { gridX, gridY } = this._getGridPos(event);
         
         if (this.mouseMode === 'draw') {
-            this._applyBrush(gridX, gridY, event.buttons === 2);
+            const isErasing = (event.buttons & 2) !== 0; // Use bitwise AND to check for right mouse button
+            this._applyBrush(gridX, gridY, isErasing);
         } else if (this.mouseMode === 'drag') {
             const dx = Math.floor((event.clientX - this.startDragPos.screenX) * this.scaleX);
             const dy = -Math.floor((event.clientY - this.startDragPos.screenY) * this.scaleY);
