@@ -1,9 +1,11 @@
+import { PRESETS } from './presets.js';
+
 export class UIController {
     constructor(canvas, state) {
         this.canvas = canvas;
         this.state = state;
         this.brushSize = 5;
-        this.mouseMode = 'draw'; // 'draw', 'drag', 'throw'
+        this.mouseMode = 'draw'; // 'draw', 'drag', 'nudge'
         this.isDragging = false;
         this.startDragPos = { x: 0, y: 0 };
         this._setupEventListeners();
@@ -30,6 +32,14 @@ export class UIController {
         document.getElementById('clear-button').addEventListener('click', () => {
             this.state.potential.fill(0);
             this.state._createReflectiveBoundary();
+        });
+
+        // Preset buttons
+        document.getElementById('double-slit-button').addEventListener('click', () => {
+            this._applyPreset('DOUBLE_SLIT');
+        });
+        document.getElementById('tunneling-button').addEventListener('click', () => {
+            this._applyPreset('TUNNELING');
         });
         
         // Sliders
@@ -92,19 +102,29 @@ export class UIController {
         this.isDragging = false;
         const { gridX, gridY } = this._getGridPos(event);
 
-        if (this.mouseMode === 'throw') {
+        if (this.mouseMode === 'nudge') {
             const dx = gridX - this.startDragPos.x;
             const dy = gridY - this.startDragPos.y;
-            this.state.params.x0 = this.startDragPos.x;
-            this.state.params.y0 = this.startDragPos.y;
-            this.state.params.px = dx * 2.0; // Scaling factor for good feel
-            this.state.params.py = dy * 2.0;
-            this.state.resetWaveFunction();
-            // Update UI sliders to reflect new momentum
+            
+            // Calculate momentum nudge from drag vector
+            const nudgePx = dx * 2.0; // Scaling factor for good feel
+            const nudgePy = dy * 2.0;
+            
+            // ADD momentum to existing packet (don't reset!)
+            this.state.params.px += nudgePx;
+            this.state.params.py += nudgePy;
+            
+            // Clamp momentum values to slider ranges
+            this.state.params.px = Math.max(-150, Math.min(150, this.state.params.px));
+            this.state.params.py = Math.max(-150, Math.min(150, this.state.params.py));
+            
+            // Update UI sliders to reflect new total momentum
             document.getElementById('px-slider').value = this.state.params.px;
             document.getElementById('py-slider').value = this.state.params.py;
             document.getElementById('px-value').textContent = this.state.params.px;
             document.getElementById('py-value').textContent = this.state.params.py;
+            
+            // Note: No resetWaveFunction() call - this preserves the existing wave packet!
         }
     }
     
@@ -135,6 +155,59 @@ export class UIController {
                 }
             }
         }
+    }
+
+    /**
+     * Apply a quantum experiment preset
+     * @param {string} presetName - The name of the preset to apply
+     * @private
+     */
+    _applyPreset(presetName) {
+        const preset = PRESETS[presetName];
+        if (!preset) {
+            console.warn(`Unknown preset: ${presetName}`);
+            return;
+        }
+
+        // Clear existing walls (preserve reflective boundaries)
+        this.state.potential.fill(0);
+        this.state._createReflectiveBoundary();
+
+        // Apply the preset's barrier pattern
+        preset.draw(
+            this.state.potential,
+            this.state.gridSize.width,
+            this.state.gridSize.height
+        );
+
+        // Set optimal initial parameters for the experiment
+        if (presetName === 'DOUBLE_SLIT') {
+            // Optimal parameters for wave interference demonstration
+            this.state.params.px = 40;
+            this.state.params.py = 0;
+            this.state.params.sigma = 10;
+            this.state.params.x0 = 32;
+            this.state.params.y0 = 128;
+        } else if (presetName === 'TUNNELING') {
+            // Optimal parameters for tunneling demonstration
+            this.state.params.px = 80;
+            this.state.params.py = 0;
+            this.state.params.sigma = 15;
+            this.state.params.x0 = 64;
+            this.state.params.y0 = 128;
+        }
+
+        // Update UI sliders to reflect new parameters
+        document.getElementById('px-slider').value = this.state.params.px;
+        document.getElementById('py-slider').value = this.state.params.py;
+        document.getElementById('sigma-slider').value = this.state.params.sigma;
+        
+        document.getElementById('px-value').textContent = this.state.params.px;
+        document.getElementById('py-value').textContent = this.state.params.py;
+        document.getElementById('sigma-value').textContent = this.state.params.sigma;
+
+        // Reset wave function with new parameters
+        this.state.resetWaveFunction();
     }
 
     updateScaling() {
