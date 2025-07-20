@@ -50,6 +50,15 @@ export class UIController {
         this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val));
         this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val));
         this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val));
+
+        // Live updates for initial state sliders - triggers wave function regeneration on release
+        const initialParamSliders = document.querySelectorAll('.initial-param-slider');
+        initialParamSliders.forEach(slider => {
+            slider.addEventListener('change', () => {
+                // When the user releases the slider, reset the wave function with the new values
+                this.state.resetWaveFunction();
+            });
+        });
     }
     
     _setupSlider(sliderId, valueId, callback, precision = 0) {
