@@ -1,4 +1,5 @@
 import { PRESETS } from './presets.js';
+import * as C from './constants.js';
 
 export class UIController {
     constructor(canvas, state) {
@@ -110,7 +111,10 @@ export class UIController {
             const nudgePx = dx * 2.0; // Scaling factor for good feel
             const nudgePy = dy * 2.0;
             
-            // ADD momentum to existing packet (don't reset!)
+            // Apply quantum phase multiplication for real momentum kick
+            this._applyMomentumKick(nudgePx, nudgePy);
+            
+            // Update stored parameters for UI feedback
             this.state.params.px += nudgePx;
             this.state.params.py += nudgePy;
             
@@ -123,8 +127,6 @@ export class UIController {
             document.getElementById('py-slider').value = this.state.params.py;
             document.getElementById('px-value').textContent = this.state.params.px;
             document.getElementById('py-value').textContent = this.state.params.py;
-            
-            // Note: No resetWaveFunction() call - this preserves the existing wave packet!
         }
     }
     
@@ -208,6 +210,37 @@ export class UIController {
 
         // Reset wave function with new parameters
         this.state.resetWaveFunction();
+    }
+
+    /**
+     * Apply a momentum kick to the wave function using quantum phase multiplication
+     * Multiplies ψ(x,y) by exp(i(Δpx*x + Δpy*y)/ℏ) to add momentum without resetting
+     * @param {number} deltaPx - Momentum change in x direction
+     * @param {number} deltaPy - Momentum change in y direction
+     * @private
+     */
+    _applyMomentumKick(deltaPx, deltaPy) {
+        const width = this.state.gridSize.width;
+        const height = this.state.gridSize.height;
+        const hbar = C.HBAR;
+
+        // Apply phase multiplication: ψ' = ψ * exp(i(Δp·r)/ℏ)
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = 2 * (y * width + x);
+                const real = this.state.psi[idx];
+                const imag = this.state.psi[idx + 1];
+                
+                // Calculate phase: (Δpx*x + Δpy*y)/ℏ
+                const phase = (deltaPx * x + deltaPy * y) / hbar;
+                const cosPhase = Math.cos(phase);
+                const sinPhase = Math.sin(phase);
+                
+                // Complex multiplication: (real + i*imag) * (cos + i*sin)
+                this.state.psi[idx] = real * cosPhase - imag * sinPhase;
+                this.state.psi[idx + 1] = real * sinPhase + imag * cosPhase;
+            }
+        }
     }
 
     updateScaling() {
