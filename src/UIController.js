@@ -11,6 +11,7 @@ export class UIController {
         this.startDragPos = { x: 0, y: 0 };
         this._setupEventListeners();
         this.updateScaling();
+        this._syncUIToState();
     }
 
     _setupEventListeners() {
@@ -252,6 +253,30 @@ export class UIController {
                 this.state.psi[idx + 1] = real * sinPhase + imag * cosPhase;
             }
         }
+    }
+
+    /**
+     * Synchronizes the UI controls to match the current simulation state.
+     * Ensures that sliders and value displays reflect the authoritative state on load.
+     * @private
+     */
+    _syncUIToState() {
+        // Sync brush size (which is a direct property of the controller)
+        document.getElementById('brush-slider').value = this.brushSize;
+        document.getElementById('brush-size-value').textContent = this.brushSize;
+
+        // Sync all parameters from the state.params object
+        const paramsToSync = ['brightness', 'dt', 'px', 'py', 'sigma'];
+        paramsToSync.forEach(param => {
+            const slider = document.getElementById(`${param}-slider`);
+            const valueSpan = document.getElementById(`${param}-value`);
+            const precision = (param === 'dt') ? 3 : 0;
+
+            if (slider && valueSpan) {
+                slider.value = this.state.params[param];
+                valueSpan.textContent = parseFloat(this.state.params[param]).toFixed(precision);
+            }
+        });
     }
 
     updateScaling() {
