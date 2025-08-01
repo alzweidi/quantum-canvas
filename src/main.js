@@ -11,6 +11,7 @@ canvas.height = C.GRID_SIZE;
 const state = new SimulationState();
 const engine = new ComputationEngine(state.gridSize);
 const renderer = new Renderer(canvas);
+// eslint-disable-next-line no-unused-vars
 const uiController = new UIController(canvas, state);
 
 function gameLoop() {
