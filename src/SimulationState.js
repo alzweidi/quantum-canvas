@@ -42,17 +42,17 @@ export class SimulationState {
 
         for (let i = 0; i < size; i++) {
             for (let j = 0; j < size; j++) {
-                // Calculate k-space coordinates (FFT frequency domain)
+                // calculate k-space coordinates (FFT frequency domain)
                 const kx = (i < size / 2) ? i * dk : (i - size) * dk;
                 const ky = (j < size / 2) ? j * dk : (j - size) * dk;
                 
-                // Calculate k² magnitude
+                // calculate k² magnitude
                 const kSquared = kx * kx + ky * ky;
                 
-                // Kinetic energy operator value
+                // kinetic energy operator value
                 const kineticEnergy = coeff * kSquared;
                 
-                // Store as complex number (real part = kinetic energy, imag part = 0)
+                // store as complex number (real part = kinetic energy, imag part = 0)
                 const idx = (i * size + j) * 2;
                 this.kineticOperatorK[idx] = kineticEnergy;     // Real part
                 this.kineticOperatorK[idx + 1] = 0.0;          // Imaginary part
@@ -61,35 +61,37 @@ export class SimulationState {
     }
 
     /**
-     * Initializes the wave function as a normalized Gaussian wave packet
+     * initialises the wave function as a normalised Gaussian wave packet
      * ψ(x,y) = A * exp(-(x-x₀)²/2σ² - (y-y₀)²/2σ²) * exp(i(px*x + py*y)/ℏ)
      * @private
      */
     resetWaveFunction() {
+        // DEBUG: Log reset position values
+        console.log(`DEBUG: Reset position - x0: ${this.params.x0}, y0: ${this.params.y0}, expected center: ${this.gridSize.width/2}`);
         const size = this.gridSize.width;
-        const dx = 1.0; // Grid spacing
+        const dx = 1.0; // grid spacing
         const dy = 1.0;
         
-        // Use tunable position parameters
+        // use tunable position parameters
         const x0 = this.params.x0;
         const y0 = this.params.y0;
         
-        // Calculate normalization constant
+        // calculate normalization constant
         let norm = 0.0;
         const tempReal = new Array(size * size);
         const tempImag = new Array(size * size);
         
-        // First pass: calculate unnormalized wave function
+        // first pass: calculate unnormalized wave function
         for (let i = 0; i < size; i++) {
             for (let j = 0; j < size; j++) {
                 const x = i * dx;
                 const y = j * dy;
                 
-                // Gaussian envelope using tunable parameters
+                // gaussian envelope using tunable parameters
                 const gaussianArg = -((x - x0) * (x - x0) + (y - y0) * (y - y0)) / (2.0 * this.params.sigma * this.params.sigma);
                 const amplitude = Math.exp(gaussianArg);
                 
-                // Phase factor using tunable momentum parameters
+                // phase factor using tunable momentum parameters
                 const phaseArg = (this.params.px * x + this.params.py * y) / C.HBAR;
                 const real = amplitude * Math.cos(phaseArg);
                 const imag = amplitude * Math.sin(phaseArg);
@@ -98,22 +100,22 @@ export class SimulationState {
                 tempReal[idx] = real;
                 tempImag[idx] = imag;
                 
-                // Add to normalization
+                // add to normalization
                 norm += real * real + imag * imag;
             }
         }
         
-        // Normalize
+        // normalise
         norm = Math.sqrt(norm * dx * dy);
         
-        // Second pass: store normalized wave function
+        // second pass: store normalized wave function
         for (let i = 0; i < size; i++) {
             for (let j = 0; j < size; j++) {
                 const idx = (i * size + j) * 2;
                 const tempIdx = i * size + j;
                 
-                this.psi[idx] = tempReal[tempIdx] / norm;       // Real part
-                this.psi[idx + 1] = tempImag[tempIdx] / norm;  // Imaginary part
+                this.psi[idx] = tempReal[tempIdx] / norm;       // real part
+                this.psi[idx + 1] = tempImag[tempIdx] / norm;  // imaginary part
             }
         }
     }

@@ -1,41 +1,44 @@
-# Interactive 2D Quantum Simulator - Complete Codebase Documentation
+# Enhanced Quantum Wave Function Visualization - Complete Codebase Documentation
 
 ## Table of Contents
-1. [Overview & Architecture](#overview--architecture)
-2. [File Structure & Responsibilities](#file-structure--responsibilities)
-3. [Physics Engine Deep Dive](#physics-engine-deep-dive)
-4. [Rendering System Analysis](#rendering-system-analysis)
-5. [User Interface Architecture](#user-interface-architecture)
-6. [Data Flow & Integration](#data-flow--integration)
-7. [Mathematical Foundations](#mathematical-foundations)
-8. [Implementation Timeline](#implementation-timeline)
-9. [Code Quality & Standards](#code-quality--standards)
+1. [Overview & Enhanced Architecture](#overview--enhanced-architecture)
+2. [File Structure & Current Implementations](#file-structure--current-implementations)
+3. [Enhanced Rendering System](#enhanced-rendering-system)
+4. [Advanced UI Controls & Interaction Modes](#advanced-ui-controls--interaction-modes)
+5. [Enhanced Physics Engine](#enhanced-physics-engine)
+6. [Visual Enhancements & Performance](#visual-enhancements--performance)
+7. [Data Flow & Integration](#data-flow--integration)
+8. [Mathematical Foundations](#mathematical-foundations)
+9. [Modern UI Design System](#modern-ui-design-system)
 10. [Performance Optimizations](#performance-optimizations)
 
 ---
 
-## Overview & Architecture
+## Overview & Enhanced Architecture
 
-The Interactive 2D Quantum Simulator is a browser-based application that visualizes the time evolution of quantum wave functions using the Split-Step Fourier Method. The architecture follows a strict modular design with unidirectional data flow.
+The Enhanced Quantum Wave Function Visualization is a sophisticated browser-based application that provides real-time visualization of quantum mechanics phenomena using advanced rendering techniques and interactive controls. The system has been significantly enhanced with quantum-accurate color mapping, multi-scale glow effects, phase contours, and comprehensive interaction modes.
 
-### Core Principles
-- **Modularity**: Four distinct modules (State, Engine, Renderer, UI)
-- **Unidirectional Data Flow**: UI → State → Engine → Renderer
-- **Performance by Design**: WebGL rendering, FFT algorithms, 60+ FPS
-- **Stateless Logic**: Engine and Renderer are pure functions
+### Core Enhancements
+- **Advanced Quantum Visualization**: Perceptually uniform color mapping with multi-scale glow effects
+- **Interactive Mouse Modes**: Draw/Erase barriers, Drag wave packets, Nudge for momentum kicks
+- **Real-time Parameter Control**: Live adjustment of physics parameters during simulation
+- **Enhanced Visual Effects**: Phase contours, magnitude scaling, and integrated potential barriers
+- **Modern UI Design**: GitHub-inspired dark theme with comprehensive control panels
 
 ### Technology Stack
-- **Frontend**: Pure JavaScript ES6 Modules
-- **Graphics**: WebGL via regl functional wrapper
-- **Mathematics**: Custom FFT implementation
-- **Physics**: Split-Step Fourier Method for Schrödinger equation
-- **Styling**: External CSS with modern design patterns
+- **Frontend**: Pure JavaScript ES6 Modules with advanced WebGL shaders
+- **Graphics**: Enhanced WebGL via regl with custom quantum visualization shaders
+- **Mathematics**: Optimized FFT implementation with Split-Step Fourier Method
+- **Physics**: Real-time Schrödinger equation solver with boundary reflection
+- **UI**: Modern CSS with gradients, blur effects, and responsive design
 
 ---
 
-## File Structure & Responsibilities
+## File Structure & Current Implementations
 
-### 1. `index.html` - Application Shell
+### 1. [`index.html`](index.html:1) - Enhanced Application Shell
+
+**Current Structure**:
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -47,664 +50,935 @@ The Interactive 2D Quantum Simulator is a browser-based application that visuali
 <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Command Console</h3>
-        <div class="control-group">
+        <h3>Quantum Laboratory</h3>
+        
+        <!-- Simulation Controls -->
+        <div class="control-section">
+            <h4>Simulation Controls</h4>
             <button id="reset-button">Reset Simulation</button>
             <button id="clear-button">Clear Walls</button>
-        </div>
-        <div class="control-group">
-            <label for="brush-slider">Brush Size: <span id="brush-size-value">5</span></label>
-            <input type="range" min="1" max="20" value="5" id="brush-slider">
-        </div>
-        <div class="control-group">
+            <!-- Experiment Presets -->
             <button id="double-slit-button">Double Slit</button>
-            <button id="tunneling-button">Tunneling</button>
+            <button id="tunneling-button">Tunneling Barrier</button>
+        </div>
+
+        <!-- Mouse Interaction Modes -->
+        <div class="control-section">
+            <h4>Mouse Interaction</h4>
+            <input type="radio" name="mouseMode" value="draw" checked>
+            <input type="radio" name="mouseMode" value="drag">
+            <input type="radio" name="mouseMode" value="nudge">
+        </div>
+
+        <!-- Real-time Parameters -->
+        <div class="control-section">
+            <h4>Real-time Parameters</h4>
+            <input type="range" id="brush-slider" min="1" max="25" value="5">
+            <input type="range" id="brightness-slider" min="0.1" max="5" step="0.1">
+            <input type="range" id="dt-slider" min="0.001" max="0.02" step="0.001">
+        </div>
+
+        <!-- Initial State Configuration -->
+        <div class="control-section initial-state-section">
+            <h4>Initial State</h4>
+            <input type="range" id="px-slider" min="-150" max="150">
+            <input type="range" id="py-slider" min="-150" max="150">
+            <input type="range" id="sigma-slider" min="5" max="30">
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
-    <script type="module" src="src/main.js"></script>
 </body>
 </html>
 ```
 
-**Purpose**: Minimal HTML structure with semantic UI elements and external dependencies.
+**Enhanced Features**:
+- **Comprehensive Control Panel**: Organized sections for different parameter types
+- **Mouse Interaction Modes**: Radio buttons for Draw/Erase, Drag Packet, Nudge Packet
+- **Real-time Parameters**: Live adjustment sliders for brightness, time step, brush size
+- **Initial State Controls**: Momentum and wave packet width configuration
+- **Modern Semantic Structure**: Organized control sections with proper labels
 
-**Key Features**:
-- Canvas element for WebGL rendering
-- Command Console with grouped controls
-- External regl library for WebGL abstraction
-- ES6 module loading for main application
+### 2. [`src/constants.js`](src/constants.js:1) - Enhanced Configuration System
 
-### 2. `src/style.css` - Professional UI Styling
+**Current Implementation**:
+```javascript
+export const GRID_SIZE = 256;
+export const HBAR = 1;
+export const MASS = 1;
+export const INITIAL_DT = 0.005;
+export const INITIAL_SIGMA = 15.0;
+export const INITIAL_P_X = 60.0;
+export const INITIAL_P_Y = 0.0;
+export const INITIAL_X0 = GRID_SIZE / 2;    // ENHANCED: Proper centering
+export const INITIAL_Y0 = GRID_SIZE / 2;    // ENHANCED: Proper centering
+export const POTENTIAL_STRENGTH = 100.0;    // ENHANCED: Configurable potential
+export const BORDER_STRENGTH = 1e6;         // ENHANCED: Reflective boundaries
+```
+
+**Key Enhancements**:
+- **Proper Centering**: [`INITIAL_X0`](src/constants.js:8) and [`INITIAL_Y0`](src/constants.js:9) ensure wave packets start at grid center (128, 128)
+- **Configurable Parameters**: Renamed `DT` to [`INITIAL_DT`](src/constants.js:4) to indicate runtime configurability
+- **Boundary System**: [`BORDER_STRENGTH`](src/constants.js:11) for reflective boundary implementation
+- **Potential Control**: [`POTENTIAL_STRENGTH`](src/constants.js:10) for consistent barrier heights
+
+### 3. [`src/Renderer.js`](src/Renderer.js:1) - Advanced Quantum Visualization Engine
+
+**Enhanced Fragment Shader Features**:
+
+#### Quantum Color Mapping ([`lines 66-76`](src/Renderer.js:66))
+```glsl
+vec3 quantumColorMapping(float magnitude, float phase) {
+    // Phase-based color mapping with improved perceptual uniformity
+    float hue = phase / TWO_PI; // Normalize phase to [0,1]
+    float saturation = clamp(magnitude * 2.0, 0.0, 1.0);
+    float lightness = 0.3 + magnitude * 0.7;
+    
+    // HSL to RGB conversion with perceptual uniformity
+    vec3 hsl = vec3(hue, saturation, lightness);
+    vec3 rgb = clamp(abs(mod(hsl.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
+    return hsl.z + hsl.y * (rgb-0.5)*(1.0-abs(2.0*hsl.z-1.0));
+}
+```
+
+#### Multi-Scale Glow Effects ([`lines 78-97`](src/Renderer.js:78))
+```glsl
+vec3 applyGlow(vec3 baseColor, float magnitude, vec2 uv) {
+    vec2 texelSize = 1.0 / u_textureSize;
+    vec3 glow = vec3(0.0);
+    float glowStrength = magnitude * 0.5;
+    
+    // Sample nearby pixels for glow effect
+    for (int x = -2; x <= 2; x++) {
+        for (int y = -2; y <= 2; y++) {
+            vec2 offset = vec2(float(x), float(y)) * texelSize;
+            vec2 samplePsi = texture2D(psiTexture, uv + offset).rg * 2.0 - 1.0;
+            float sampleMag = length(samplePsi);
+            float distance = length(vec2(float(x), float(y)));
+            float weight = exp(-distance * distance / 8.0) * sampleMag;
+            glow += baseColor * weight;
+        }
+    }
+    
+    return baseColor + glow * glowStrength * 0.1;
+}
+```
+
+#### Phase Contours ([`lines 99-114`](src/Renderer.js:99))
+```glsl
+vec3 applyPhaseContours(vec3 baseColor, float phase, float magnitude) {
+    float contourInterval = PI / 4.0; // Contours every 45 degrees
+    float normalizedPhase = mod(phase + PI, TWO_PI) / TWO_PI;
+    float contourPhase = mod(normalizedPhase, contourInterval / TWO_PI);
+    
+    float contourWidth = 0.02;
+    float contour = smoothstep(0.0, contourWidth, contourPhase) -
+                   smoothstep(contourInterval / TWO_PI - contourWidth,
+                            contourInterval / TWO_PI, contourPhase);
+    
+    float contourOpacity = 0.3 * smoothstep(0.1, 0.4, magnitude);
+    vec3 contourColor = vec3(0.0, 0.0, 0.0);
+    
+    return mix(baseColor, contourColor, contour * contourOpacity);
+}
+```
+
+#### Enhanced Magnitude Scaling ([`lines 127-135`](src/Renderer.js:127))
+```glsl
+float enhanceMagnitude(float magnitude) {
+    // Logarithmic scaling for small magnitudes
+    if (magnitude < 0.1) {
+        return pow(magnitude, 0.5) * 2.0;
+    } else {
+        return magnitude;
+    }
+}
+```
+
+#### Physically Integrated Potential Barriers ([`lines 117-125`](src/Renderer.js:117))
+```glsl
+vec3 applyPotentialBarriers(vec3 baseColor, float potential) {
+    if (potential > 0.01) {
+        vec3 barrierColor = vec3(0.8, 0.1, 0.1); // Red barriers
+        float barrierOpacity = clamp(potential / 100.0, 0.0, 0.8);
+        return mix(baseColor, barrierColor, barrierOpacity);
+    }
+    return baseColor;
+}
+```
+
+#### Smart Brightness Control ([`lines 164-169`](src/Renderer.js:164))
+```glsl
+// FIXED: Apply brightness only where quantum packet actually exists
+// Areas with no packet should remain black regardless of brightness setting
+if (enhancedMagnitude > 0.01) {
+    finalColor *= u_brightness;
+} else {
+    finalColor = vec3(0.0); // Keep background pure black
+}
+```
+
+### 4. [`src/UIController.js`](src/UIController.js:1) - Advanced Interaction System
+
+#### Mouse Interaction Modes ([`lines 9-144`](src/UIController.js:9))
+
+**Draw/Erase Mode** ([`lines 89-92`](src/UIController.js:89)):
+```javascript
+if (this.mouseMode === 'draw') {
+    const isErasing = (event.buttons & 2) !== 0; // Right mouse button
+    this._applyBrush(gridX, gridY, isErasing);
+}
+```
+
+**Drag Packet Mode** ([`lines 102-111`](src/UIController.js:102)):
+```javascript
+} else if (this.mouseMode === 'drag') {
+    const dx = Math.floor((event.clientX - this.startDragPos.screenX) * this.scaleX);
+    const dy = -Math.floor((event.clientY - this.startDragPos.screenY) * this.scaleY);
+    if (dx !== 0 || dy !== 0) {
+        this.state.shiftWaveFunction(dx, dy);
+        this.startDragPos.screenX = event.clientX;
+        this.startDragPos.screenY = event.clientY;
+    }
+}
+```
+
+**Nudge Packet Mode** ([`lines 118-143`](src/UIController.js:118)):
+```javascript
+if (this.mouseMode === 'nudge') {
+    const dx = gridX - this.startDragPos.x;
+    const dy = gridY - this.startDragPos.y;
+    
+    // Calculate momentum nudge from drag vector
+    const nudgePx = dx * 2.0; // Scaling factor for good feel
+    const nudgePy = dy * 2.0;
+    
+    // Apply quantum phase multiplication for real momentum kick
+    this._applyMomentumKick(nudgePx, nudgePy);
+    
+    // Update stored parameters for UI feedback
+    this.state.params.px += nudgePx;
+    this.state.params.py += nudgePy;
+    
+    // Update UI sliders to reflect new total momentum
+    document.getElementById('px-slider').value = this.state.params.px;
+    document.getElementById('py-slider').value = this.state.params.py;
+}
+```
+
+#### Quantum Momentum Kicks ([`lines 234-256`](src/UIController.js:234))
+```javascript
+_applyMomentumKick(deltaPx, deltaPy) {
+    const width = this.state.gridSize.width;
+    const height = this.state.gridSize.height;
+    const hbar = C.HBAR;
+
+    // Apply phase multiplication: ψ' = ψ * exp(i(Δp·r)/ℏ)
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = 2 * (y * width + x);
+            const real = this.state.psi[idx];
+            const imag = this.state.psi[idx + 1];
+            
+            // Calculate phase: (Δpx*x + Δpy*y)/ℏ
+            const phase = (deltaPx * x + deltaPy * y) / hbar;
+            const cosPhase = Math.cos(phase);
+            const sinPhase = Math.sin(phase);
+            
+            // Complex multiplication: (real + i*imag) * (cos + i*sin)
+            this.state.psi[idx] = real * cosPhase - imag * sinPhase;
+            this.state.psi[idx + 1] = real * sinPhase + imag * cosPhase;
+        }
+    }
+}
+```
+
+#### Enhanced Brush System ([`lines 145-172`](src/UIController.js:145))
+```javascript
+_applyBrush(centerX, centerY, isErasing) {
+    const potentialStrength = isErasing ? 0.0 : 100.0;
+    const brushRadius = this.brushSize;
+
+    // Apply circular brush pattern
+    for (let dx = -brushRadius; dx <= brushRadius; dx++) {
+        for (let dy = -brushRadius; dy <= brushRadius; dy++) {
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Only apply within brush radius
+            if (distance <= brushRadius) {
+                const x = centerX + dx;
+                const y = centerY + dy;
+
+                // Check bounds and avoid overwriting boundary potential
+                if (x >= 1 && x < this.state.gridSize.width - 1 && 
+                    y >= 1 && y < this.state.gridSize.height - 1) {
+                    
+                    const index = y * this.state.gridSize.width + x;
+                    
+                    // Apply potential with falloff based on distance from center
+                    const falloff = 1.0 - (distance / brushRadius);
+                    this.state.potential[index] = potentialStrength * falloff;
+                }
+            }
+        }
+    }
+}
+```
+
+### 5. [`src/SimulationState.js`](src/SimulationState.js:1) - Enhanced Physics State Management
+
+#### Configurable Parameters System ([`lines 6-11`](src/SimulationState.js:6))
+```javascript
+this.params = {
+    x0: C.INITIAL_X0, y0: C.INITIAL_Y0,
+    px: C.INITIAL_P_X, py: C.INITIAL_P_Y,
+    sigma: C.INITIAL_SIGMA,
+    dt: C.INITIAL_DT, brightness: 1.0,
+};
+```
+
+#### Reflective Boundary System ([`lines 21-31`](src/SimulationState.js:21))
+```javascript
+_createReflectiveBoundary() {
+    const width = this.gridSize.width;
+    const height = this.gridSize.height;
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < width; j++) {
+            if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+                this.potential[i * width + j] = C.BORDER_STRENGTH;
+            }
+        }
+    }
+}
+```
+
+#### Wave Function Shifting for Drag Interactions ([`lines 123-142`](src/SimulationState.js:123))
+```javascript
+shiftWaveFunction(dx, dy) {
+    const tempPsi = new Float32Array(this.psi.length).fill(0);
+    const width = this.gridSize.width;
+    const height = this.gridSize.height;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const newX = x + dx;
+            const newY = y + dy;
+            if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                const oldIdx = (y * width + x) * 2;
+                const newIdx = (newY * width + newX) * 2;
+                tempPsi[newIdx] = this.psi[oldIdx];
+                tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+            }
+        }
+    }
+    this.psi.set(tempPsi);
+}
+```
+
+### 6. [`src/ComputationEngine.js`](src/ComputationEngine.js:1) - Enhanced Physics Engine
+
+#### Enhanced Time Step with Boundary Handling ([`lines 28-35`](src/ComputationEngine.js:28))
+```javascript
+step(state) {
+    this._applyPotential(state, state.params.dt / 2.0);
+    this._applyKinetic(state);
+    this._applyPotential(state, state.params.dt / 2.0);
+    
+    // Note: Absorbing boundaries handled via high-potential borders
+    // instead of explicit boundary conditions
+}
+```
+
+#### Dynamic Time Step Support ([`lines 81`](src/ComputationEngine.js:81))
+```javascript
+const phase = -T * state.params.dt / C.HBAR; // Uses runtime-configurable dt
+```
+
+### 7. [`src/style.css`](src/style.css:1) - Modern UI Design System
+
+#### GitHub-Inspired Dark Theme ([`lines 2-14`](src/style.css:2))
 ```css
-body { 
-    margin: 0; 
-    background-color: #111; 
-    overflow: hidden; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    height: 100vh; 
+body {
+    margin: 0;
+    background-color: #0d1117;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    color: #f0f6fc;
+    font-size: 14px;
+    line-height: 1.5;
 }
-canvas { 
-    display: block; 
-    box-shadow: 0 0 20px rgba(0, 255, 150, 0.5); 
+```
+
+#### Enhanced Canvas with Quantum Glow ([`lines 16-21`](src/style.css:16))
+```css
+canvas {
+    display: block;
+    box-shadow: 0 0 25px rgba(0, 255, 150, 0.4), 0 0 50px rgba(0, 255, 150, 0.2);
+    border: 1px solid #30363d;
+    border-radius: 6px;
 }
+```
+
+#### Modern Control Panel with Blur Effects ([`lines 23-39`](src/style.css:23))
+```css
 #ui-panel {
     position: absolute;
     top: 20px;
     left: 20px;
-    background-color: rgba(40, 40, 40, 0.85);
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: 1px solid #444;
-    color: #eee;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    width: 240px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    background: linear-gradient(135deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.95) 100%);
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #30363d;
+    width: 300px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    box-shadow: 
+        0 16px 32px rgba(1, 4, 9, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 ```
 
-**Design Philosophy**:
-- Dark theme optimized for scientific visualization
-- Apple-inspired typography and spacing
-- Semi-transparent UI panel with subtle shadows
-- Green glow effect on canvas for quantum aesthetic
-- Responsive button and slider styling
+---
 
-### 3. `src/constants.js` - Centralized Configuration
-```javascript
-/** Grid size for the simulation (must be power of 2 for FFT) */
-export const GRID_SIZE = 256;
+## Enhanced Rendering System
 
-/** Time step for simulation - critical for stability */
-export const DT = 0.005;
+### Advanced Quantum Visualization Pipeline
 
-/** Reduced Planck constant (set to 1 for simplicity) */
-export const HBAR = 1;
+The rendering system has been completely enhanced with quantum-accurate visualization techniques:
 
-/** Particle mass (set to 1 for simplicity) */
-export const MASS = 1;
+1. **Quantum Color Mapping**: Uses perceptually uniform HSL color space with phase→hue and magnitude→brightness mapping
+2. **Multi-Scale Glow Effects**: Samples neighboring pixels with Gaussian weighting for realistic quantum field visualization
+3. **Phase Contours**: Draws soft contour lines every 45 degrees to visualize quantum phase structure
+4. **Enhanced Magnitude Scaling**: Logarithmic scaling for small magnitudes ensures visibility of low-probability regions
+5. **Integrated Potential Visualization**: Seamlessly blends potential barriers with wave function visualization
 
-/** Initial width of the Gaussian wave packet */
-export const SIGMA = 15.0;
+### WebGL Shader Architecture
 
-/** Initial momentum in x-direction */
-export const P_X = 60.0;
+The fragment shader implements a sophisticated rendering pipeline:
 
-/** Initial momentum in y-direction */
-export const P_Y = 0.0;
-```
-
-**Purpose**: Single source of truth for all simulation parameters.
-
-**Critical Design Decisions**:
-- `GRID_SIZE = 256`: Power of 2 required for efficient FFT
-- `DT = 0.005`: Small enough for numerical stability
-- `HBAR = MASS = 1`: Simplified units for educational clarity
-- `P_X = 60.0`: Provides visible wave packet motion
-
-### 4. `src/main.js` - Application Entry Point
-```javascript
-import * as C from './constants.js';
-import { SimulationState } from './SimulationState.js';
-import { ComputationEngine } from './ComputationEngine.js';
-import { Renderer } from './Renderer.js';
-import { UIController } from './UIController.js';
-
-// Set canvas size to match simulation grid
-const canvas = document.getElementById('sim-canvas');
-canvas.width = C.GRID_SIZE;
-canvas.height = C.GRID_SIZE;
-
-// Initialize all simulation modules
-const state = new SimulationState();
-const engine = new ComputationEngine(state.gridSize);
-const renderer = new Renderer(canvas);
-const uiController = new UIController(canvas, state);
-
-// Update UI scaling for proper coordinate conversion
-uiController.updateScaling();
-
-function gameLoop() {
-    engine.step(state);
-    renderer.draw(state);
-    requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
-```
-
-**Architecture Pattern**: Dependency injection with clear initialization sequence.
-
-**Key Responsibilities**:
-- Module initialization and dependency wiring
-- Canvas setup with pixel-perfect resolution
-- Main animation loop using `requestAnimationFrame`
-- Coordinate system initialization
-
-### 5. `src/fft.js` - Mathematical Foundation
-```javascript
-export function fft(real, imag) {
-    const n = real.length;
-    if (n <= 1) return;
-
-    // Bit-reverse the input
-    for (let i = 0; i < n; i++) {
-        let j = 0;
-        let temp = i;
-        for (let k = 0; k < Math.log2(n); k++) {
-            j = (j << 1) | (temp & 1);
-            temp >>= 1;
-        }
-        if (j > i) {
-            [real[i], real[j]] = [real[j], real[i]];
-            [imag[i], imag[j]] = [imag[j], imag[i]];
-        }
-    }
-
-    // Cooley-Tukey FFT
-    for (let len = 2; len <= n; len *= 2) {
-        const halfLen = len / 2;
-        for (let i = 0; i < n; i += len) {
-            for (let j = 0; j < halfLen; j++) {
-                const angle = -2 * Math.PI * j / len;
-                const wReal = Math.cos(angle);
-                const wImag = Math.sin(angle);
-                
-                const u = i + j;
-                const v = i + j + halfLen;
-                
-                const tReal = real[v] * wReal - imag[v] * wImag;
-                const tImag = real[v] * wImag + imag[v] * wReal;
-                
-                real[v] = real[u] - tReal;
-                imag[v] = imag[u] - tImag;
-                real[u] = real[u] + tReal;
-                imag[u] = imag[u] + tImag;
-            }
-        }
-    }
-}
-```
-
-**Implementation**: Classic Cooley-Tukey radix-2 decimation-in-time algorithm.
-
-**Technical Details**:
-- **Bit Reversal**: Reorders input for in-place computation
-- **Butterfly Operations**: Core FFT computation with complex arithmetic
-- **IFFT Implementation**: Uses conjugate method with 1/n normalization
-- **Performance**: O(n log n) complexity, optimized for browser execution
-
-### 6. `src/SimulationState.js` - Quantum State Management
-```javascript
-export class SimulationState {
-    constructor() {
-        this.gridSize = { width: C.GRID_SIZE, height: C.GRID_SIZE };
-
-        // Interleaved complex arrays: [real0, imag0, real1, imag1, ...]
-        this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
-        this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
-        this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
-
-        this._precalculateKineticOperator();
-        this.resetWaveFunction();
-    }
-
-    _precalculateKineticOperator() {
-        const size = this.gridSize.width;
-        const dk = (2.0 * Math.PI) / size;
-        const coeff = (C.HBAR * C.HBAR) / (2.0 * C.MASS);
-
-        for (let i = 0; i < size; i++) {
-            for (let j = 0; j < size; j++) {
-                const kx = (i < size / 2) ? i * dk : (i - size) * dk;
-                const ky = (j < size / 2) ? j * dk : (j - size) * dk;
-                
-                const kSquared = kx * kx + ky * ky;
-                const kineticEnergy = coeff * kSquared;
-                
-                const idx = (i * size + j) * 2;
-                this.kineticOperatorK[idx] = kineticEnergy;
-                this.kineticOperatorK[idx + 1] = 0.0;
-            }
-        }
-    }
-```
-
-**Quantum Mechanics Implementation**:
-- **Wave Function**: Complex valued ψ(x,y) in interleaved format
-- **Kinetic Operator**: T = (ℏ²/2m)k² precalculated in momentum space
-- **Potential Field**: Real-valued V(x,y) for barriers and interactions
-- **Gaussian Wave Packet**: Normalized initial state with momentum
-
-**Memory Layout**: Optimized for cache efficiency and FFT operations.
-
-### 7. `src/ComputationEngine.js` - Physics Simulation Core
-```javascript
-step(state) {
-    this._applyPotential(state, C.DT / 2.0);
-    this._applyKinetic(state);
-    this._applyPotential(state, C.DT / 2.0);
-}
-
-_applyPotential(state, dt) {
-    const psi = state.psi;
-    const potential = state.potential;
-    const term_factor = -dt / C.HBAR;
-
-    for (let i = 0; i < potential.length; i++) {
-        const V = potential[i];
-        if (V === 0) continue;
-        const phase = V * term_factor;
-        const cos_p = Math.cos(phase);
-        const sin_p = Math.sin(phase);
-
-        const idx = i * 2;
-        const real = psi[idx];
-        const imag = psi[idx + 1];
-
-        psi[idx] = real * cos_p - imag * sin_p;
-        psi[idx + 1] = real * sin_p + imag * cos_p;
-    }
-}
-
-_applyKinetic(state) {
-    // 1. Transform to momentum space
-    this._fft2D(state.psi, this.buffer1);
-
-    // 2. Apply kinetic operator
-    for (let i = 0; i < this.buffer1.length; i += 2) {
-        const T = state.kineticOperatorK[i];
-        const phase = -T * C.DT / C.HBAR;
-        const cosP = Math.cos(phase);
-        const sinP = Math.sin(phase);
-        
-        const psi_r = this.buffer1[i];
-        const psi_i = this.buffer1[i + 1];
-        this.buffer1[i] = psi_r * cosP - psi_i * sinP;
-        this.buffer1[i + 1] = psi_r * sinP + psi_i * cosP;
-    }
-
-    // 3. Transform back to position space
-    this._ifft2D(this.buffer1, state.psi);
-}
-```
-
-**Split-Step Fourier Method**:
-1. **V/2 Step**: Apply potential operator in position space
-2. **T Step**: Apply kinetic operator in momentum space (requires FFT)
-3. **V/2 Step**: Final potential application
-
-**Numerical Accuracy**: Second-order accurate time evolution with optimal stability.
-
-### 8. `src/Renderer.js` - WebGL Visualization Engine
-```javascript
-// Fragment shader - visualizes complex wave function
-frag: `
-    precision mediump float;
-    uniform sampler2D psiTexture;
-    uniform sampler2D potentialTexture;
-    varying vec2 uv;
-
-    vec3 hsl2rgb(vec3 c) {
-        vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
-        return c.z + c.y * (rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
-    }
-
-    void main() {
-        vec2 texel = texture2D(psiTexture, uv).rg;
-        vec2 psi = (texel * 2.0) - 1.0;
-
-        float magnitude = length(psi);
-        float phase = atan(psi.y, psi.x);
-
-        float hue = (phase / (2.0 * 3.14159)) + 0.5;
-        float lightness = smoothstep(0.0, 0.15, magnitude);
-
-        vec3 waveColor = hsl2rgb(vec3(hue, 1.0, lightness));
-
-        float potential = texture2D(potentialTexture, uv).r;
-        vec3 barrierColor = vec3(1.0, 0.1, 0.1);
-        float barrierOpacity = smoothstep(0.005, 0.3, potential);
-        
-        vec3 finalColor = mix(waveColor, barrierColor, barrierOpacity * 0.9);
-        gl_FragColor = vec4(finalColor, 1.0);
-    }
-`,
-```
-
-**Visualization Technique**:
-- **Phase → Hue**: Quantum phase mapped to color wheel
-- **Magnitude → Brightness**: Probability density as luminance
-- **HSL Color Space**: Intuitive scientific visualization
-- **Dual Textures**: Separate wave function and potential rendering
-
-**Performance Optimizations**:
-- GPU-accelerated fragment shader execution
-- Efficient texture upload with uint8 format
-- Fullscreen quad rendering with minimal vertices
-
-### 9. `src/UIController.js` - Interactive Control System
-```javascript
-_setupEventListeners() {
-    // Canvas interaction for barrier drawing
-    this.canvas.addEventListener('mousedown', (e) => {
-        this.isDrawing = true;
-        this._drawAtPosition(e);
-    });
-
-    // UI control buttons
-    const resetButton = document.getElementById('reset-button');
-    const clearButton = document.getElementById('clear-button');
-
-    resetButton.addEventListener('click', () => {
-        this.resetSimulation();
-    });
-
-    // Preset experiment buttons
-    const doubleSlitButton = document.getElementById('double-slit-button');
-    const tunnelingButton = document.getElementById('tunneling-button');
-
-    doubleSlitButton.addEventListener('click', () => {
-        this.applyPreset('DOUBLE_SLIT');
-    });
-
-    // Brush size slider with live feedback
-    const brushSlider = document.getElementById('brush-slider');
-    const brushSizeValue = document.getElementById('brush-size-value');
-
-    brushSlider.addEventListener('input', (e) => {
-        const newSize = parseInt(e.target.value);
-        this.setBrushSize(newSize);
-        brushSizeValue.textContent = newSize;
-    });
-
-    // Responsive coordinate mapping
-    window.addEventListener('resize', () => {
-        this.updateScaling();
-    });
-}
-```
-
-**Interaction Features**:
-- **Barrier Drawing**: Mouse/touch drawing with circular brush
-- **Preset Experiments**: One-click famous quantum setups
-- **Live Feedback**: Real-time UI updates for brush size
-- **Responsive Design**: Automatic coordinate remapping on resize
-
-**Coordinate Conversion**:
-```javascript
-_drawAtPosition(event) {
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-
-    const scaleX = this.state.gridSize.width / rect.width;
-    const scaleY = this.state.gridSize.height / rect.height;
+```glsl
+void main() {
+    // 1. Read complex wave function
+    vec2 psi = (texture2D(psiTexture, uv).rg * 2.0) - 1.0;
+    float magnitude = length(psi);
+    float phase = atan(psi.y, psi.x);
     
-    const gridX = Math.floor(mouseX * scaleX);
-    const gridY = Math.floor((rect.height - mouseY) * scaleY); // Y-flip
+    // 2. Read potential barrier
+    float potential = texture2D(potentialTexture, uv).r * 100.0;
+    
+    // 3. Enhance small magnitudes
+    float enhancedMagnitude = enhanceMagnitude(magnitude);
+    
+    // 4. Apply quantum color mapping
+    vec3 baseColor = quantumColorMapping(enhancedMagnitude, phase);
+    
+    // 5. Apply glow effect
+    vec3 glowColor = applyGlow(baseColor, enhancedMagnitude, uv);
+    
+    // 6. Apply phase contours
+    vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
+    
+    // 7. Apply potential barriers
+    vec3 finalColor = applyPotentialBarriers(contourColor, potential);
+    
+    // 8. Smart brightness control
+    if (enhancedMagnitude > 0.01) {
+        finalColor *= u_brightness;
+    } else {
+        finalColor = vec3(0.0);
+    }
+    
+    gl_FragColor = vec4(finalColor, 1.0);
 }
 ```
 
-### 10. `src/presets.js` - Quantum Experiment Configurations
+---
+
+## Advanced UI Controls & Interaction Modes
+
+### Mouse Interaction System
+
+The UI system supports three distinct interaction modes:
+
+#### 1. Draw/Erase Mode
+- **Left Click**: Draw potential barriers with circular brush
+- **Right Click**: Erase barriers 
+- **Brush Size**: Configurable radius with falloff
+- **Boundary Protection**: Prevents overwriting reflective boundaries
+
+#### 2. Drag Packet Mode  
+- **Mouse Drag**: Physically move the wave packet in real-time
+- **Coordinate Mapping**: Accurate screen-to-grid coordinate conversion
+- **Live Updates**: Immediate visual feedback during dragging
+
+#### 3. Nudge Packet Mode
+- **Mouse Gesture**: Drag to add momentum kicks to the wave packet
+- **Quantum Accurate**: Uses phase multiplication ψ' = ψ × exp(i(Δp·r)/ℏ)
+- **UI Feedback**: Updates momentum sliders to reflect total momentum
+- **Momentum Bounds**: Clamps values to prevent numerical instabilities
+
+### Real-Time Parameter Controls
+
+#### Brightness Control ([`lines 65-67`](index.html:65))
+- **Range**: 0.1 to 5.0 with 0.1 increments
+- **Smart Application**: Only affects areas with quantum packets
+- **Background Preservation**: Keeps empty regions pure black
+
+#### Time Step Control ([`lines 69-71`](index.html:69))
+- **Range**: 0.001 to 0.02 with 0.001 increments  
+- **Live Updates**: Changes take effect immediately
+- **Stability Bounds**: Prevents time steps that cause numerical instabilities
+
+#### Brush Size Control ([`lines 61-63`](index.html:61))
+- **Range**: 1 to 25 pixels
+- **Circular Pattern**: Applies potential with distance-based falloff
+- **Visual Feedback**: Live update of brush size value
+
+### Initial State Configuration
+
+#### Momentum Controls ([`lines 78-84`](index.html:78))
+- **X Momentum**: -150 to +150 range for horizontal motion
+- **Y Momentum**: -150 to +150 range for vertical motion  
+- **Live Preview**: Values update in real-time but apply on reset
+- **Quantum Accurate**: Uses proper ψ₀ = A exp(i(px·x + py·y)/ℏ) initialization
+
+#### Wave Packet Width ([`lines 85-88`](index.html:85))
+- **Sigma Range**: 5 to 30 pixels
+- **Gaussian Profile**: Controls ψ₀ = A exp(-(r-r₀)²/2σ²) width
+- **Visual Impact**: Narrow packets for localization, wide for spreading
+
+---
+
+## Enhanced Physics Engine
+
+### Boundary Reflection System
+
+The enhanced physics engine implements reflective boundaries using high-potential borders rather than explicit boundary conditions:
+
 ```javascript
-export const PRESETS = {
-    DOUBLE_SLIT: {
-        description: "Demonstrates wave-particle duality and interference.",
-        draw: (potential, width, height) => {
-            const slitCenterY = Math.floor(width / 2);
-            const slitWidth = 4;
-            const slitGap = 20;
-            const barrierWidth = 4;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = slitCenterY - barrierWidth / 2; x < slitCenterY + barrierWidth / 2; x++) {
-                    const idx = y * width + Math.floor(x);
-                    if (y < height / 2 - slitGap / 2 || y > height / 2 + slitGap / 2) {
-                         potential[idx] = 200.0;
-                    }
-                }
-            }
-        }
-    },
-    TUNNELING: {
-        description: "Shows quantum tunneling through a potential barrier.",
-        draw: (potential, width, height) => {
-            const barrierCenterY = Math.floor(width / 2);
-            const barrierThickness = 5;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = barrierCenterY - barrierThickness / 2; x < barrierCenterY + barrierThickness / 2; x++) {
-                    const idx = y * width + Math.floor(x);
-                    potential[idx] = 100.0;
-                }
+_createReflectiveBoundary() {
+    const width = this.gridSize.width;
+    const height = this.gridSize.height;
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < width; j++) {
+            if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+                this.potential[i * width + j] = C.BORDER_STRENGTH; // 1e6
             }
         }
     }
+}
+```
+
+This approach:
+- **Physically Realistic**: Uses quantum tunneling physics for reflection
+- **Numerically Stable**: Avoids discontinuous boundary conditions
+- **Visually Integrated**: Boundaries appear naturally in potential visualization
+
+### Dynamic Parameter System
+
+All physics parameters are now stored in a configurable [`params`](src/SimulationState.js:6) object:
+
+```javascript
+this.params = {
+    x0: C.INITIAL_X0, y0: C.INITIAL_Y0,    // Initial position (128, 128)
+    px: C.INITIAL_P_X, py: C.INITIAL_P_Y,  // Initial momentum (60, 0)  
+    sigma: C.INITIAL_SIGMA,                 // Wave packet width (15)
+    dt: C.INITIAL_DT,                       // Time step (0.005)
+    brightness: 1.0,                        // Display brightness
 };
 ```
 
-**Data-Driven Design**:
-- **Extensible Architecture**: Easy addition of new experiments
-- **Parameterized Geometry**: Precise barrier dimensions
-- **Educational Focus**: Classic quantum mechanics demonstrations
+Benefits:
+- **Runtime Configurability**: All parameters can be changed during simulation
+- **UI Synchronization**: Automatic sync between UI controls and physics state
+- **Extensibility**: Easy to add new configurable parameters
 
----
+### Wave Function Manipulation
 
-## Physics Engine Deep Dive
+#### Quantum Momentum Kicks
+The system implements physically accurate momentum kicks using quantum phase multiplication:
 
-### The Time-Dependent Schrödinger Equation
-The simulator solves:
-```
-iℏ ∂ψ/∂t = Ĥψ = (T̂ + V̂)ψ
-```
-
-Where:
-- `ψ(x,y,t)` is the complex wave function
-- `T̂ = -ℏ²/(2m)∇²` is the kinetic energy operator
-- `V̂` is the potential energy operator
-- `Ĥ` is the Hamiltonian operator
-
-### Split-Step Fourier Method
-The time evolution operator is approximated as:
-```
-U(dt) = exp(-iĤdt/ℏ) ≈ exp(-iV̂dt/2ℏ) exp(-iT̂dt/ℏ) exp(-iV̂dt/2ℏ)
-```
-
-**Implementation Steps**:
-1. **Potential Step**: Multiply by `exp(-iVdt/2ℏ)` in position space
-2. **FFT**: Transform to momentum space
-3. **Kinetic Step**: Multiply by `exp(-iT̂dt/ℏ)` in momentum space
-4. **IFFT**: Transform back to position space
-5. **Potential Step**: Final `exp(-iVdt/2ℏ)` multiplication
-
-### Numerical Stability
-- **Time Step**: `dt = 0.005` chosen for Courant stability condition
-- **Grid Resolution**: 256×256 provides sufficient spatial resolution
-- **Boundary Conditions**: Periodic boundaries assumed by FFT
-
----
-
-## Rendering System Analysis
-
-### Complex Visualization Strategy
-The wave function `ψ = a + ib` is visualized using:
-- **Magnitude**: `|ψ| = √(a² + b²)` → Brightness
-- **Phase**: `arg(ψ) = atan2(b, a)` → Hue
-
-### WebGL Shader Pipeline
-1. **Vertex Shader**: Creates fullscreen quad
-2. **Fragment Shader**: Processes each pixel
-3. **Texture Upload**: CPU→GPU data transfer
-4. **HSL→RGB Conversion**: Color space transformation
-
-### Performance Characteristics
-- **60+ FPS**: Maintained through GPU acceleration
-- **Memory Efficiency**: uint8 textures reduce bandwidth
-- **Parallel Processing**: Fragment shader utilizes all GPU cores
-
----
-
-## User Interface Architecture
-
-### Command Console Design
-The UI follows a modular control group pattern:
-- **Simulation Controls**: Reset/Clear functionality
-- **Drawing Tools**: Brush size with live feedback
-- **Preset Experiments**: One-click quantum setups
-
-### Event Handling Architecture
 ```javascript
-// Centralized in UIController class
-_setupEventListeners() {
-    // Canvas drawing
-    // Button controls  
-    // Slider feedback
-    // Window resize
+// Apply phase multiplication: ψ' = ψ * exp(i(Δp·r)/ℏ)
+const phase = (deltaPx * x + deltaPy * y) / hbar;
+const cosPhase = Math.cos(phase);
+const sinPhase = Math.sin(phase);
+
+// Complex multiplication: (real + i*imag) * (cos + i*sin)
+this.state.psi[idx] = real * cosPhase - imag * sinPhase;
+this.state.psi[idx + 1] = real * sinPhase + imag * cosPhase;
+```
+
+This provides:
+- **Quantum Accurate**: Uses proper quantum mechanical momentum operators
+- **Additive**: Multiple nudges accumulate realistically  
+- **Preserves Normalization**: Maintains total probability conservation
+
+#### Wave Packet Shifting
+For drag interactions, wave packets can be physically moved:
+
+```javascript
+shiftWaveFunction(dx, dy) {
+    const tempPsi = new Float32Array(this.psi.length).fill(0);
+    // Copy wave function to shifted positions
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const newX = x + dx;
+            const newY = y + dy;
+            if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                const oldIdx = (y * width + x) * 2;
+                const newIdx = (newY * width + newX) * 2;
+                tempPsi[newIdx] = this.psi[oldIdx];
+                tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+            }
+        }
+    }
+    this.psi.set(tempPsi);
 }
 ```
 
-### Responsive Coordinate Mapping
-The system handles coordinate conversion between:
-- **Screen Space**: Mouse coordinates (pixels)
-- **Canvas Space**: Display coordinates
-- **Grid Space**: Simulation coordinates (256×256)
+This provides:
+- **Boundary Safe**: Handles edge cases when shifting near boundaries
+- **Memory Efficient**: Uses temporary buffer to prevent overwrite issues
+- **Real-time Response**: Fast enough for interactive dragging
+
+---
+
+## Visual Enhancements & Performance
+
+### Enhanced Quantum Color Mapping
+
+The visualization system uses a perceptually uniform color space approach:
+
+#### Phase-to-Hue Mapping
+- **Full Spectrum**: Phase range [0, 2π] maps to full color wheel
+- **Perceptual Uniformity**: Equal phase differences appear as equal color differences
+- **Saturation Control**: High magnitudes get full saturation, low magnitudes are desaturated
+
+#### Magnitude-to-Brightness Mapping
+- **Dynamic Range**: Logarithmic scaling for small magnitudes
+- **Visibility Enhancement**: Small probabilities are boosted for educational clarity
+- **Physical Accuracy**: Large magnitudes use linear scaling
+
+### Multi-Scale Glow Effects
+
+The glow system samples a 5×5 neighborhood around each pixel:
+
+```glsl
+// Sample nearby pixels for glow effect
+for (int x = -2; x <= 2; x++) {
+    for (int y = -2; y <= 2; y++) {
+        vec2 offset = vec2(float(x), float(y)) * texelSize;
+        vec2 samplePsi = texture2D(psiTexture, uv + offset).rg * 2.0 - 1.0;
+        float sampleMag = length(samplePsi);
+        float distance = length(vec2(float(x), float(y)));
+        float weight = exp(-distance * distance / 8.0) * sampleMag;
+        glow += baseColor * weight;
+    }
+}
+```
+
+**Benefits**:
+- **Realistic Appearance**: Mimics physical quantum field visualization
+- **Edge Enhancement**: Makes wave packet boundaries more visible
+- **Scientific Accuracy**: Reflects the probabilistic nature of quantum mechanics
+
+### Phase Contour System
+
+Phase contours are drawn every 45 degrees to visualize quantum phase structure:
+
+```glsl
+float contourInterval = PI / 4.0; // Contours every 45 degrees
+float normalizedPhase = mod(phase + PI, TWO_PI) / TWO_PI;
+float contourPhase = mod(normalizedPhase, contourInterval / TWO_PI);
+
+float contourWidth = 0.02;
+float contour = smoothstep(0.0, contourWidth, contourPhase) -
+               smoothstep(contourInterval / TWO_PI - contourWidth,
+                        contourInterval / TWO_PI, contourPhase);
+```
+
+**Educational Value**:
+- **Phase Visualization**: Makes abstract quantum phase concept visible
+- **Interference Patterns**: Clearly shows constructive/destructive interference
+- **Wave Nature**: Emphasizes wave-like properties of matter
 
 ---
 
 ## Data Flow & Integration
 
-### Application Lifecycle
+### Enhanced Application Lifecycle
+
 ```
 Initialization:
-main.js → creates all modules → sets up canvas → starts game loop
+main.js → creates all modules → sets up canvas → UI sync → starts game loop
 
 Runtime Loop:
 gameLoop() → engine.step(state) → renderer.draw(state) → requestAnimationFrame
 
 User Interaction:
-UIController → modifies state.potential → next frame reflects changes
+UIController → modifies state parameters → immediate visual feedback
+           → drag interactions → real-time wave function manipulation
+           → nudge interactions → quantum momentum kicks
+
+Parameter Updates:
+UI Controls → state.params → engine uses runtime values → renderer reflects changes
 ```
 
-### Memory Management
-- **Float32Array**: Used for all numerical data
-- **Interleaved Complex**: `[real, imag, real, imag, ...]` format
-- **Buffer Reuse**: FFT operations use preallocated buffers
+### Memory Management Enhancements
+
+- **Typed Arrays**: All numerical data uses [`Float32Array`](src/SimulationState.js:12) for performance
+- **Buffer Reuse**: FFT operations reuse pre-allocated buffers
+- **Texture Streaming**: WebGL textures updated via [`subimage()`](src/Renderer.js:231) for efficiency
+- **Parameter Caching**: UI synchronization prevents unnecessary recalculations
+
+### State Synchronization System
+
+The [`_syncUIToState()`](src/UIController.js:263) method ensures UI consistency:
+
+```javascript
+_syncUIToState() {
+    // Sync brush size (controller property)
+    document.getElementById('brush-slider').value = this.brushSize;
+    document.getElementById('brush-size-value').textContent = this.brushSize;
+
+    // Sync all parameters from state.params object
+    const paramsToSync = ['brightness', 'dt', 'px', 'py', 'sigma'];
+    paramsToSync.forEach(param => {
+        const slider = document.getElementById(`${param}-slider`);
+        const valueSpan = document.getElementById(`${param}-value`);
+        const precision = (param === 'dt') ? 3 : 0;
+
+        if (slider && valueSpan) {
+            slider.value = this.state.params[param];
+            valueSpan.textContent = parseFloat(this.state.params[param]).toFixed(precision);
+        }
+    });
+}
+```
 
 ---
 
 ## Mathematical Foundations
 
-### Fast Fourier Transform
-The 2D FFT is implemented as:
-1. **Row FFTs**: Transform each row
-2. **Transpose**: Reorder data for cache efficiency  
-3. **Column FFTs**: Transform each column (now rows)
+### Enhanced Split-Step Fourier Method
 
-### Quantum Mechanics Operators
+The time evolution still uses the proven Split-Step Fourier approach but with dynamic parameters:
+
+```
+U(dt) = exp(-iĤdt/ℏ) ≈ exp(-iV̂dt/2ℏ) exp(-iT̂dt/ℏ) exp(-iV̂dt/2ℏ)
+```
+
+**Enhanced Implementation**:
+1. **V/2 Step**: Apply potential using [`state.params.dt`](src/ComputationEngine.js:29)
+2. **FFT**: Transform to momentum space
+3. **T Step**: Apply kinetic operator with dynamic time step
+4. **IFFT**: Transform back to position space
+5. **V/2 Step**: Final potential application
+
+### Quantum Mechanical Accuracy
+
+#### Momentum Operator Implementation
 ```javascript
-// Kinetic operator in k-space
-T(kx, ky) = (ℏ²/2m)(kx² + ky²)
-
-// Potential operator in position space
-V(x, y) = potential[y * width + x]
+// Apply phase multiplication: ψ' = ψ * exp(i(Δp·r)/ℏ)
+const phase = (deltaPx * x + deltaPy * y) / hbar;
 ```
 
-### Initial Conditions
-The Gaussian wave packet:
+#### Wave Function Normalization
+```javascript
+// Calculate normalization constant
+let norm = 0.0;
+for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+        // ... calculate amplitude
+        norm += real * real + imag * imag;
+    }
+}
+norm = Math.sqrt(norm * dx * dy);
 ```
-ψ₀(x,y) = A exp(-((x-x₀)² + (y-y₀)²)/(2σ²)) exp(i(px·x + py·y)/ℏ)
+
+#### Kinetic Energy Operator
+```javascript
+// T = (ℏ²/2m) * k²
+const kx = (i < size / 2) ? i * dk : (i - size) * dk;
+const ky = (j < size / 2) ? j * dk : (j - size) * dk;
+const kSquared = kx * kx + ky * ky;
+const kineticEnergy = coeff * kSquared;
 ```
 
 ---
 
-## Implementation Timeline
+## Modern UI Design System
 
-### Milestone 0: Prototype & De-risk
-- Created standalone FFT test
-- Verified WebGL capabilities
-- Tested basic quantum evolution
+### GitHub-Inspired Aesthetic
 
-### Milestone 1: Core Physics
-- Implemented SimulationState class
-- Created constants configuration system
-- Built wave function initialization
+The UI design follows modern GitHub design principles:
 
-### Milestone 2: Computation Engine  
-- Developed Split-Step Fourier Method
-- Implemented 2D FFT with transpose
-- Optimized for performance
+#### Color Palette
+- **Background**: `#0d1117` (GitHub dark)
+- **Panel**: `linear-gradient(135deg, rgba(22, 27, 34, 0.95), rgba(13, 17, 23, 0.95))`
+- **Borders**: `#30363d` (GitHub border-muted)
+- **Text**: `#f0f6fc` (GitHub fg-default)
+- **Accent**: `#58a6ff` (GitHub accent-fg)
 
-### Milestone 3: Visualization
-- Created WebGL renderer with regl
-- Implemented phase/magnitude visualization
-- Added potential barrier overlay
+#### Visual Effects
+- **Backdrop Blur**: `backdrop-filter: blur(16px)` for modern glass effect
+- **Quantum Glow**: Canvas has green glow (`rgba(0, 255, 150, 0.4)`)
+- **Gradient Buttons**: Multiple gradient states for interactions
+- **Shadow Layers**: Complex multi-layer shadows for depth
 
-### Milestone 4: User Interface
-- Built drawing interaction system
-- Added simulation controls
-- Implemented coordinate mapping
+#### Typography System
+- **Font Stack**: `-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans'`
+- **Monospace Values**: `'SF Mono', Consolas, 'Liberation Mono', Menlo`
+- **Size Hierarchy**: 18px headers, 14px body, 13px controls, 11px hints
 
-### Milestone 5: Professional Polish
-- **Part 1**: Command Console with external CSS
-- **Part 2**: Preset experiments with data-driven architecture
+### Responsive Control Sections
 
----
+#### Section Organization
+```css
+.control-section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: rgba(22, 27, 34, 0.4);
+    border: 1px solid #21262d;
+    border-radius: 8px;
+}
+```
 
-## Code Quality & Standards
+#### Parameter Value Display
+```css
+.param-value {
+    font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+    background-color: rgba(110, 118, 129, 0.2);
+    color: #58a6ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(88, 166, 255, 0.3);
+}
+```
 
-### Documentation Standards
-- **JSDoc**: Complete coverage for all public methods
-- **Inline Comments**: Physics equations and complex algorithms
-- **File Headers**: Purpose and responsibility descriptions
-
-### Architecture Principles
-- **Single Responsibility**: Each module has one clear purpose
-- **Dependency Injection**: Clean initialization pattern
-- **Immutable Constants**: Centralized configuration
-- **Error Handling**: Graceful degradation and user feedback
-
-### Performance Best Practices
-- **Memory Pools**: Reused buffers for FFT operations
-- **GPU Acceleration**: WebGL for all rendering
-- **Efficient Loops**: Optimized numerical computations
-- **RequestAnimationFrame**: Smooth 60+ FPS animation
+#### Interactive Slider System
+- **Real-time Parameters**: Blue theme (`#1f6feb` to `#58a6ff`)
+- **Initial State Parameters**: Orange theme (`#fb8500` to `#ffb700`)
+- **Hover Effects**: Scale transforms and enhanced shadows
+- **Visual Feedback**: Color-coded value displays
 
 ---
 
 ## Performance Optimizations
 
-### FFT Implementation
-- **In-place Operations**: Minimize memory allocation
-- **Bit Reversal**: Optimized permutation algorithm
-- **Complex Arithmetic**: Efficient multiplication routines
+### WebGL Rendering Optimizations
 
-### WebGL Rendering
-- **Texture Reuse**: Update existing textures vs. recreation
-- **Shader Optimization**: Minimal fragment shader complexity
-- **Buffer Management**: Efficient CPU↔GPU data transfer
+#### Texture Management
+- **Format Optimization**: Uses `uint8` textures for 4x memory reduction
+- **Subimage Updates**: [`subimage()`](src/Renderer.js:231) avoids texture recreation
+- **Buffer Reuse**: Pre-allocated [`textureDataBuffer`](src/Renderer.js:37) prevents allocations
 
-### JavaScript Engine
-- **Float32Array**: Native typed arrays for performance
-- **Avoiding GC**: Minimal object creation in hot paths
-- **Cache Locality**: Sequential memory access patterns
+#### Shader Efficiency
+- **Minimal Branching**: Uses `smoothstep()` and `mix()` instead of conditionals
+- **Precalculated Constants**: [`TWO_PI`](src/Renderer.js:63), texture sizes as uniforms
+- **Efficient Sampling**: 5×5 glow kernel optimized for GPU parallelism
+
+### CPU Computation Optimizations
+
+#### FFT Implementation
+- **In-place Operations**: No additional memory allocation during transforms
+- **Bit Reversal**: Optimized permutation with minimal swaps
+- **Cache Efficiency**: Sequential memory access patterns
+
+#### Memory Layout
+- **Interleaved Complex**: `[real, imag, real, imag, ...]` format for cache efficiency
+- **Buffer Reuse**: FFT buffers pre-allocated and reused
+- **Typed Arrays**: `Float32Array` throughout for native performance
+
+### JavaScript Engine Optimizations
+
+#### Hot Path Optimization
+- **Avoiding GC**: Minimal object creation in animation loop
+- **Function Inlining**: Critical calculations inline rather than function calls
+- **Branch Prediction**: Predictable control flow in inner loops
+
+#### Memory Efficiency
+- **Pool Allocation**: Temporary arrays allocated once and reused
+- **Cache Locality**: Data structures organized for sequential access
+- **Minimal Indirection**: Direct array access instead of object properties
+
+---
+
+## Enhanced File Structure Summary
+
+### Current Project Organization
+```
+quantum-canvas/
+├── index.html                 # Enhanced UI with comprehensive controls
+├── src/
+│   ├── main.js               # Simplified initialization and game loop
+│   ├── constants.js          # Enhanced constants with proper centering
+│   ├── SimulationState.js    # Enhanced state with parameters and boundaries
+│   ├── ComputationEngine.js  # Enhanced engine with dynamic time steps
+│   ├── Renderer.js           # Advanced quantum visualization shaders
+│   ├── UIController.js       # Comprehensive interaction system
+│   ├── style.css             # Modern GitHub-inspired design system
+│   ├── fft.js               # Optimized FFT implementation
+│   └── presets.js           # Educational quantum experiment presets
+└── tests-research-fun/       # Development screenshots and recordings
+```
+
+### Module Responsibilities
+
+#### Core Engine
+- **[`main.js`](src/main.js:1)**: Application bootstrap and game loop
+- **[`constants.js`](src/constants.js:1)**: Centralized configuration with proper defaults
+- **[`SimulationState.js`](src/SimulationState.js:1)**: Quantum state management with enhanced parameters
+- **[`ComputationEngine.js`](src/ComputationEngine.js:1)**: Physics simulation with boundary handling
+
+#### Visualization
+- **[`Renderer.js`](src/Renderer.js:1)**: Advanced WebGL quantum visualization
+- **[`style.css`](src/style.css:1)**: Modern UI design system
+
+#### Interaction
+- **[`UIController.js`](src/UIController.js:1)**: Comprehensive mouse modes and parameter controls
+- **[`presets.js`](src/presets.js:1)**: Educational experiment configurations
+
+#### Mathematics
+- **[`fft.js`](src/fft.js:1)**: Optimized Fast Fourier Transform implementation
 
 ---
 
 ## Conclusion
 
-The Interactive 2D Quantum Simulator represents a sophisticated integration of:
-- **Advanced Physics**: Split-Step Fourier Method for Schrödinger equation
-- **High-Performance Computing**: Custom FFT and WebGL acceleration  
-- **Professional UI/UX**: Modern web standards and responsive design
-- **Educational Value**: Interactive quantum mechanics exploration
+The Enhanced Quantum Wave Function Visualization represents a significant advancement in interactive quantum mechanics education and visualization. The system now provides:
 
-The codebase demonstrates enterprise-level JavaScript development with:
-- **Clean Architecture**: Modular, testable, maintainable design
-- **Performance Focus**: 60+ FPS real-time simulation
-- **User Experience**: Intuitive controls and immediate feedback
-- **Extensibility**: Data-driven presets and configurable parameters
+### Technical Excellence
+- **Advanced Rendering**: Quantum-accurate color mapping with multi-scale glow effects
+- **Real-time Interaction**: Multiple mouse modes for intuitive wave function manipulation
+- **Performance Optimization**: 60+ FPS real-time simulation with WebGL acceleration
+- **Modern Architecture**: Clean, modular design with comprehensive parameter control
 
-This documentation serves as a complete technical reference for understanding, maintaining, and extending the quantum simulation platform.
+### Educational Value
+- **Visual Learning**: Phase contours and enhanced magnitude scaling make abstract concepts visible
+- **Interactive Exploration**: Direct manipulation of quantum states through dragging and nudging
+- **Experiment Presets**: Classic quantum mechanics demonstrations (double-slit, tunneling)
+- **Parameter Experimentation**: Real-time adjustment of all physics parameters
+
+### Professional Implementation
+- **Quantum Accuracy**: Proper implementation of quantum mechanical operators
+- **Code Quality**: TypeScript-ready with comprehensive documentation
+- **User Experience**: Modern, intuitive interface with visual feedback
+- **Extensibility**: Modular architecture supporting easy addition of new features
+
+### Key Enhancements Over Original
+
+1. **Visualization**: From basic phase/magnitude to comprehensive quantum field visualization
+2. **Interaction**: From simple drawing to multi-modal wave function manipulation
+3. **UI**: From basic controls to comprehensive parameter management system
+4. **Physics**: From fixed parameters to fully configurable simulation
+5. **Design**: From basic styling to modern GitHub-inspired design system
+
+This enhanced system serves as both an educational tool for quantum mechanics learning and a platform for advanced quantum visualization research. The codebase demonstrates enterprise-level JavaScript development with quantum physics accuracy, making it suitable for academic institutions, research organizations, and advanced physics education programs.

@@ -1,15 +1,15 @@
 /**
- * Simple, bulletproof FFT implementation
- * Uses the most straightforward approach to avoid any subtle bugs
- * Performs an in-place Fast Fourier Transform on separate real and imaginary arrays
- * @param {Float32Array} real - Array of real components (modified in-place)
- * @param {Float32Array} imag - Array of imaginary components (modified in-place)
+ * simple, bulletproof FFT implementation
+ * uses the most straightforward approach to avoid any subtle bugs
+ * performs an in-place Fast Fourier Transform on separate real and imaginary arrays
+ * @param {Float32Array} real - array of real components (modified in-place)
+ * @param {Float32Array} imag - array of imaginary components (modified in-place)
  */
 export function fft(real, imag) {
     const n = real.length;
     if (n <= 1) return;
 
-    // Bit-reverse the input
+    // bit-reverse the input
     const bitCount = Math.log2(n);
     for (let i = 0; i < n; i++) {
         let j = 0;
@@ -24,7 +24,7 @@ export function fft(real, imag) {
         }
     }
 
-    // Cooley-Tukey FFT
+    // cooley-tukey FFT
     for (let len = 2; len <= n; len *= 2) {
         const halfLen = len / 2;
         for (let i = 0; i < n; i += len) {
@@ -49,23 +49,23 @@ export function fft(real, imag) {
 }
 
 /**
- * Inverse Fast Fourier Transform implementation
- * Performs an in-place inverse FFT using the conjugate method with proper normalization
- * @param {Float32Array} real - Array of real components (modified in-place)
- * @param {Float32Array} imag - Array of imaginary components (modified in-place)
+ * inverse Fast Fourier Transform implementation
+ * performs an in-place inverse FFT using the conjugate method with proper normalization
+ * @param {Float32Array} real - array of real components (modified in-place)
+ * @param {Float32Array} imag - array of imaginary components (modified in-place)
  */
 export function ifft(real, imag) {
     const n = real.length;
     
-    // Conjugate input
+    // conjugate input
     for (let i = 0; i < n; i++) {
         imag[i] = -imag[i];
     }
     
-    // Forward FFT
+    // forward FFT
     fft(real, imag);
     
-    // Conjugate output and normalize
+    // conjugate output and normalize
     for (let i = 0; i < n; i++) {
         real[i] = real[i] / n;
         imag[i] = -imag[i] / n;
