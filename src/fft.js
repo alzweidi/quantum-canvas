@@ -30,10 +30,14 @@ export function fft(real, imag) {
         for (let i = 0; i < n; i += len) {
             for (let j = 0; j < halfLen; j++) {
                 const angle = -2 * Math.PI * j / len;
+                // eslint-disable-next-line id-length -- wReal/wImag are standard DSP notation for twiddle factors
                 const wReal = Math.cos(angle);
+                // eslint-disable-next-line id-length -- wReal/wImag are standard DSP notation for twiddle factors
                 const wImag = Math.sin(angle);
                 
+                // eslint-disable-next-line id-length -- u/v are standard FFT butterfly operation indices
                 const u = i + j;
+                // eslint-disable-next-line id-length -- u/v are standard FFT butterfly operation indices
                 const v = i + j + halfLen;
                 
                 const tReal = real[v] * wReal - imag[v] * wImag;

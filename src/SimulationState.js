@@ -139,4 +139,37 @@ export class SimulationState {
         }
         this.psi.set(tempPsi);
     }
+
+    /**
+     * apply absorbing boundaries to prevent wave function wrapping
+     * gradually reduces amplitude near the edges to simulate infinite space
+     * @private
+     */
+    _applyAbsorbingBoundaries() {
+        const width = this.gridSize.width;
+        const height = this.gridSize.height;
+        const boundaryWidth = 10; // width of absorbing region
+        
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                const idx = (i * width + j) * 2;
+                
+                // calculate distance from edges
+                const distFromLeft = j;
+                const distFromRight = width - 1 - j;
+                const distFromTop = i;
+                const distFromBottom = height - 1 - i;
+                
+                // find minimum distance to any edge
+                const minDist = Math.min(distFromLeft, distFromRight, distFromTop, distFromBottom);
+                
+                // apply exponential decay within boundary region
+                if (minDist < boundaryWidth) {
+                    const dampingFactor = Math.exp(-0.1 * (boundaryWidth - minDist));
+                    this.psi[idx] *= dampingFactor;         // real part
+                    this.psi[idx + 1] *= dampingFactor;     // imaginary part
+                }
+            }
+        }
+    }
 }

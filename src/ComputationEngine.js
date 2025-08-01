@@ -47,6 +47,7 @@ export class ComputationEngine {
         const term_factor = -dt / C.HBAR;
 
         for (let i = 0; i < potential.length; i++) {
+            // eslint-disable-next-line id-length -- V is standard physics notation for potential energy
             const V = potential[i];
             if (V === 0) continue;
             const phase = V * term_factor;
@@ -75,6 +76,7 @@ export class ComputationEngine {
         // 2. apply the kinetic operator with correct quantum time evolution
         for (let i = 0; i < this.buffer1.length; i += 2) {
             // get the kinetic energy T(k) from the pre-calculated array
+            // eslint-disable-next-line id-length -- T is standard physics notation for kinetic energy
             const T = state.kineticOperatorK[i];
             
             // calculate the phase rotation: phi = -T * dt / hbar
