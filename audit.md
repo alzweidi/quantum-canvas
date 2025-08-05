@@ -760,7 +760,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**13. Right-Click Erase Detection Inconsistent**
+**13. Right-Click Erase Detection Inconsistent**  (FIXED AND COMMITTED)
 
   
 
@@ -782,7 +782,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**14. Unconditional Animation Loop**
+**14. Unconditional Animation Loop** (FIXED AND COMMITTED)
 
   
 

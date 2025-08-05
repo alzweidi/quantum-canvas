@@ -53,6 +53,20 @@ this.canvas.addEventListener('mouseleave', () => {
         window.addEventListener('resize', this.updateScaling.bind(this));
 
         // other controls
+        const pauseButton = document.getElementById('pause-button');
+        if (pauseButton) {
+            pauseButton.addEventListener('click', () => {
+                if (window.toggleAnimation) {
+                    window.toggleAnimation();
+                    // update button text based on pause state
+                    const isPaused = window.isPaused();
+                    pauseButton.textContent = isPaused ? 'Play' : 'Pause';
+                }
+            });
+        } else {
+            console.warn('Warning: Pause button not found in DOM');
+        }
+
         const resetButton = document.getElementById('reset-button');
         if (resetButton) {
             resetButton.addEventListener('click', () => {

@@ -46,9 +46,15 @@ let consecutiveRenderingErrors = 0;
 let lastErrorLogTime = 0;
 let skipComputationFrames = 0;
 
+// animation loop control system (Bug/feat)
+let isAnimationRunning = false;
+let isPaused = false;
+let isTabVisible = !document.hidden;
+let animationFrameId = null;
+
 /**
- * animation loop with comprehensive error handling
- * guarantees RAF continuation even during exceptions - fixes bug
+ * animation loop with comprehensive error handling and visibility control
+ * fixed: conditional RAF execution based on visibility and pause state
  */
 function gameLoop() {
     const frameStart = performance.now();
@@ -131,15 +137,124 @@ function gameLoop() {
         console.warn(`[PERFORMANCE] Slow frame: ${frameTime.toFixed(2)}ms (target: <16.67ms)`);
     }
     
-    // === guaranteed RAF continuation ===
-    // this MUST execute regardless of any exceptions above
-    // fixes: unguarded per-frame loop
-    requestAnimationFrame(gameLoop);
+    // === controlled RAF continuation ===
+    // fixed: conditional RAF based on visibility and pause state
+    if (isAnimationRunning && !isPaused && isTabVisible) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+    } else {
+        animationFrameId = null;
+    }
 }
 
-gameLoop();
+/**
+ * start the animation loop
+ */
+function startAnimation() {
+    if (!isAnimationRunning) {
+        isAnimationRunning = true;
+        console.log('[ANIMATION CONTROL] Animation started');
+        if (!isPaused && isTabVisible) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+    }
+}
 
-// === DPR CHANGE DETECTION AND RECOVERY (Bug fixed) ===
+/**
+ * pause the animation loop
+ */
+function pauseAnimation() {
+    if (!isPaused) {
+        isPaused = true;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        console.log('[ANIMATION CONTROL] Animation paused');
+    }
+}
+
+/**
+ * resume the animation loop
+ */
+function resumeAnimation() {
+    if (isPaused) {
+        isPaused = false;
+        console.log('[ANIMATION CONTROL] Animation resumed');
+        if (isAnimationRunning && isTabVisible) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+    }
+}
+
+/**
+ * Stop the animation loop completely
+ */
+function stopAnimation() {
+    isAnimationRunning = false;
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+    console.log('[ANIMATION CONTROL] Animation stopped');
+}
+
+/**
+ * toggle pause/resume state
+ */
+function toggleAnimation() {
+    if (isPaused) {
+        resumeAnimation();
+    } else {
+        pauseAnimation();
+    }
+}
+
+// page visibility API integration (bug/feat)
+function handleVisibilityChange() {
+    const wasVisible = isTabVisible;
+    isTabVisible = !document.hidden;
+    
+    if (isTabVisible && !wasVisible) {
+        // tab became visible
+        console.log('[VISIBILITY] Tab became visible - resuming animation');
+        if (isAnimationRunning && !isPaused) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+    } else if (!isTabVisible && wasVisible) {
+        // tab became hidden
+        console.log('[VISIBILITY] Tab became hidden - pausing animation to save resources');
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+}
+
+// setup page visibility API listeners
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
+// keyboard shortcut for pause/play (spacebar)
+document.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' && !event.target.matches('input, textarea, select')) {
+        event.preventDefault();
+        toggleAnimation();
+    }
+});
+
+// export animation control functions to window for UI access
+window.startAnimation = startAnimation;
+window.pauseAnimation = pauseAnimation;
+window.resumeAnimation = resumeAnimation;
+window.stopAnimation = stopAnimation;
+window.toggleAnimation = toggleAnimation;
+window.isPaused = () => isPaused;
+window.isAnimationRunning = () => isAnimationRunning;
+window.isTabVisible = () => isTabVisible;
+
+// start the animation loop
+startAnimation();
+
+// === DPR CHANGE DETECTION AND RECOVERY (bug/feat) ===
 function handleDPRChange() {
     const newDPR = window.devicePixelRatio || 1;
     if (newDPR !== currentDPR) {
@@ -292,17 +407,52 @@ window.resetErrorCounters = function() {
     console.log('[TEST] All error counters reset');
 };
 
-console.log(`
-bug 8 (unguarded per-frame loop) fixed - testing functions available:
+/**
+ * test animation control system
+ * usage: window.testAnimationControl() - test pause/resume functionality
+ */
+window.testAnimationControl = function() {
+    console.log('[TEST] Testing animation control system...');
+    console.log('[TEST] Current state:', {
+        running: isAnimationRunning,
+        paused: isPaused,
+        visible: isTabVisible
+    });
+    
+    setTimeout(() => {
+        console.log('[TEST] Pausing animation...');
+        pauseAnimation();
+    }, 1000);
+    
+    setTimeout(() => {
+        console.log('[TEST] Resuming animation...');
+        resumeAnimation();
+    }, 3000);
+    
+    setTimeout(() => {
+        console.log('[TEST] Animation control test complete');
+    }, 4000);
+};
 
+console.log(`
+bug #14 (unconditional animation loop) fixed - new features available:
+
+ANIMATION CONTROL:
+• Spacebar - pause/resume animation
+• Pause button in UI - manual control
+• Automatic pause when tab is hidden (Page Visibility API)
+• Zero resource usage in background tabs
+
+TESTING FUNCTIONS:
+• window.testAnimationControl() - test pause/resume system
 • window.testComputationErrors(N) - inject N computation errors
-• window.testRenderingErrors(N) - inject N rendering errors  
+• window.testRenderingErrors(N) - inject N rendering errors
 • window.testComputationDegradation() - test graceful degradation
 • window.testRenderingRecovery() - test recovery mechanisms
 • window.testStateCorruption() - test corruption detection
 • window.getErrorStats() - view current error statistics
 • window.resetErrorCounters() - reset for fresh testing
 
-the animation loop will never stop, even during severe errors.
-monitor console for error handling and recovery messages.
+RESOURCE CONSERVATION: animation automatically pauses when tab is hidden.
+switch to another tab and return - check console for visibility messages.
 `);
