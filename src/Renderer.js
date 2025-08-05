@@ -205,7 +205,7 @@ export class Renderer {
                 psiTexture: this.psiTexture,
                 potentialTexture: this.potentialTexture,
                 u_brightness: this.regl.prop('brightness'),
-                u_textureSize: [this.backingStoreWidth, this.backingStoreHeight]
+                u_textureSize: this.regl.prop('textureSize')
             },
 
             // draw 6 vertices (2 triangles = fullscreen quad)
@@ -273,10 +273,10 @@ export class Renderer {
             color: [0, 0, 0, 1],
             depth: 1
         });
-
-        // execute the draw command with brightness parameter
+// execute the draw command with brightness parameter and current texture size
         this.drawCommand({
-            brightness: state.params.brightness
+            brightness: state.params.brightness,
+            textureSize: [this.backingStoreWidth, this.backingStoreHeight]
         });
     }
 }

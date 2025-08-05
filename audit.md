@@ -804,7 +804,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**15. Brightness Gating Hides Structure**
+**15. Brightness Gating Hides Structure** (FIXED AND COMMITTED)
 
   
 
@@ -826,7 +826,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**16. Texture Size Uniform Stale on Resize**
+**16. Texture Size Uniform Stale on Resize** (FIXED AND COMMITTED)
 
   
 
