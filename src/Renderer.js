@@ -4,7 +4,7 @@
  */
 export class Renderer {
     /**
-     * initialize the WebGL renderer with regl
+     * initialise the WebGL renderer with regl
      * @param {HTMLCanvasElement} canvasElement - the canvas to render to
      */
     constructor(canvasElement) {

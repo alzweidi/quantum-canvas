@@ -20,7 +20,7 @@ export class SimulationState {
     }
     
     _createReflectiveBoundary() {
-        // Only create reflective boundaries if mode allows it
+        // only create reflective boundaries if mode allows it
         if (this.params.boundaryMode === 'reflective' || this.params.boundaryMode === 'both') {
             const width = this.gridSize.width;
             const height = this.gridSize.height;
@@ -35,15 +35,15 @@ export class SimulationState {
     }
 
     /**
-     * Update boundaries based on current boundary mode
-     * Clears existing boundaries and applies the appropriate type
+     * update boundaries based on current boundary mode
+     * clears existing boundaries and applies the appropriate type
      * @public
      */
     _updateBoundaries() {
         const width = this.gridSize.width;
         const height = this.gridSize.height;
         
-        // Clear all boundary potentials first
+        // clear all boundary potentials first
         for (let i = 0; i < height; i++) {
             for (let j = 0; j < width; j++) {
                 if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
@@ -52,12 +52,12 @@ export class SimulationState {
             }
         }
         
-        // Apply the appropriate boundary type
+        // apply the appropriate boundary type
         this._createReflectiveBoundary();
     }
 
     /**
-     * Precalculates the kinetic energy operator in k-space
+     * precalculates the kinetic energy operator in k-space
      * T = (ℏ²/2m) * k² where k is the wave vector magnitude
      * @private
      */
@@ -172,7 +172,7 @@ export class SimulationState {
      * @private
      */
     _applyAbsorbingBoundaries() {
-        // Only apply absorbing boundaries if mode allows it
+        // only apply absorbing boundaries if mode allows it
         if (this.params.boundaryMode === 'absorbing' || this.params.boundaryMode === 'both') {
             const width = this.gridSize.width;
             const height = this.gridSize.height;
@@ -193,8 +193,8 @@ export class SimulationState {
                     
                     // apply exponential decay within boundary region
                     if (minDist < boundaryWidth) {
-                        // FIXED: Scale damping by dt to ensure time-step independence
-                        // This represents a continuous absorption rate rather than discrete per-step damping
+                        // fixed scale damping by dt to ensure time-step independence
+                        // this represents a continuous absorption rate rather than discrete per-step damping
                         const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
                         const dampingFactor = Math.exp(-dampingRate * this.params.dt);
                         
