@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFT Dimension Swap Bug Test</title>
+    <style>
+        body { 
+            font-family: 'Courier New', monospace; 
+            background: #1a1a1a; 
+            color: #00ff00; 
+            padding: 20px;
+        }
+        .test-result { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-left: 3px solid #00ff00; 
+        }
+        .failed { 
+            border-left-color: #ff0000; 
+            color: #ff8888; 
+        }
+        .passed { 
+            border-left-color: #00ff00; 
+            color: #88ff88; 
+        }
+        pre { 
+            background: #2a2a2a; 
+            padding: 10px; 
+            overflow-x: auto; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 FFT Dimension Swap Bug Investigation</h1>
+    <h2>Testing Round-Trip Accuracy: ifft2D(fft2D(x)) ≈ x</h2>
+    
+    <div id="results"></div>
+    
+    <script type="module">
+        import { ComputationEngine } from './src/ComputationEngine.js';
+        
+        function log(message, className = '') {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${className}`;
+            div.innerHTML = `<pre>${message}</pre>`;
+            resultsDiv.appendChild(div);
+        }
+        
+        function runTests() {
+            log("🚀 Starting FFT Dimension Swap Bug Tests...\n");
+            
+            // Test cases: square and non-square grids
+            const testCases = [
+                { width: 64, height: 64, description: "Square grid (control)" },
+                { width: 128, height: 64, description: "Rectangular grid (suspect)" },
+                { width: 64, height: 128, description: "Rectangular grid (inverse)" },
+                { width: 32, height: 16, description: "Small rectangular grid" }
+            ];
+            
+            let totalTests = 0;
+            let passedTests = 0;
+            
+            testCases.forEach((testCase, index) => {
+                totalTests++;
+                log(`\n--- Test ${index + 1}: ${testCase.description} (${testCase.width}x${testCase.height}) ---`);
+                
+                try {
+                    const engine = new ComputationEngine({ 
+                        width: testCase.width, 
+                        height: testCase.height 
+                    });
+                    
+                    const passed = engine.testRoundTripAccuracy(testCase.width, testCase.height);
+                    
+                    if (passed) {
+                        passedTests++;
+                        log(`✅ Test ${index + 1}: PASSED`, 'passed');
+                    } else {
+                        log(`❌ Test ${index + 1}: FAILED - Dimension swap detected!`, 'failed');
+                    }
+                    
+                } catch (error) {
+                    log(`💥 Test ${index + 1}: ERROR - ${error.message}`, 'failed');
+                }
+            });
+            
+            log(`\n🏁 TEST SUMMARY: ${passedTests}/${totalTests} tests passed`);
+            
+            if (passedTests < totalTests) {
+                log(`\n🐛 BUG CONFIRMED: Dimension swap risk exists in non-square grids!`, 'failed');
+                log(`\n📋 DIAGNOSIS: The asymmetric iteration patterns in _fft2D() and _ifft2D() 
+cause dimension swap issues for rectangular grids. The forward transform uses 
+height-then-width passes while inverse uses width-then-height passes.`, 'failed');
+            } else {
+                log(`\n✨ All tests passed - no dimension swap detected.`, 'passed');
+            }
+        }
+        
+        // Override console.log to capture our debug output
+        const originalLog = console.log;
+        console.log = function(...args) {
+            log(args.join(' '));
+            originalLog.apply(console, args);
+        };
+        
+        // Run tests when page loads
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>
