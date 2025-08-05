@@ -27,13 +27,17 @@ export class ComputationEngine {
      */
     step(state) {
         this._applyPotential(state, state.params.dt / 2.0);
+        
+        // fixed a BUG: applied absorbing boundaries BEFORE kinetic evolution
+        // which prevents wrap artifacts during FFT-based kinetic step in k-space
+        // thank you to the dream i had last night
+        state._applyAbsorbingBoundaries();
+        
         this._applyKinetic(state);
         this._applyPotential(state, state.params.dt / 2.0);
         
-        // fixed: apply absorbing boundaries to prevent wrapping
+        // keep post-step absorption for additional safety
         state._applyAbsorbingBoundaries();
-// DEBUG: log boundary effects to confirm physics contradiction
-        this._logBoundaryEffects(state);
     }
     
     /**
@@ -228,4 +232,5 @@ export class ComputationEngine {
             console.log(`BOUNDARY DEBUG: Avg amplitude near edges: ${avgBoundaryAmplitude.toFixed(6)}, Points: ${boundaryPoints}`);
         }
     }
+
 }
