@@ -143,6 +143,7 @@ export class SimulationState {
     /**
      * apply absorbing boundaries to prevent wave function wrapping
      * gradually reduces amplitude near the edges to simulate infinite space
+     * uses dt scaling to ensure time-step independence
      * @private
      */
     _applyAbsorbingBoundaries() {
@@ -165,7 +166,11 @@ export class SimulationState {
                 
                 // apply exponential decay within boundary region
                 if (minDist < boundaryWidth) {
-                    const dampingFactor = Math.exp(-0.1 * (boundaryWidth - minDist));
+                    // FIXED: Scale damping by dt to ensure time-step independence
+                    // This represents a continuous absorption rate rather than discrete per-step damping
+                    const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
+                    const dampingFactor = Math.exp(-dampingRate * this.params.dt);
+                    
                     this.psi[idx] *= dampingFactor;         // real part
                     this.psi[idx + 1] *= dampingFactor;     // imaginary part
                 }
