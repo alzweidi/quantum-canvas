@@ -8,6 +8,7 @@ export class UIController {
         this.brushSize = 5;
         this.mouseMode = 'draw'; // 'draw', 'drag', 'nudge'
         this.isDragging = false;
+        this.isErasing = false; // robust right-click state tracking
         this.startDragPos = { x: 0, y: 0 };
         this._setupEventListeners();
         this.updateScaling();
@@ -46,7 +47,10 @@ export class UIController {
         this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
         this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
         this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
-        this.canvas.addEventListener('mouseleave', () => this.isDragging = false);
+        this.canvas.addEventListener('mouseleave', () => {
+            this.isDragging = false;
+            this.isErasing = false; // reset erase state on mouse leave
+        });
         window.addEventListener('resize', this.updateScaling.bind(this));
 
         // other controls
@@ -143,12 +147,13 @@ export class UIController {
 
     _handleMouseDown(event) {
         this.isDragging = true;
+        // robust right-click detection using event.button (reliable across browsers/trackpads)
+        this.isErasing = (event.button === 2);
         const { gridX, gridY } = this._getGridPos(event);
         this.startDragPos = { x: gridX, y: gridY, screenX: event.clientX, screenY: event.clientY };
 
         if (this.mouseMode === 'draw') {
-            const isErasing = (event.buttons & 2) !== 0; // use bitwise AND to check for right mouse button
-            this._applyBrush(gridX, gridY, isErasing);
+            this._applyBrush(gridX, gridY, this.isErasing);
         }
     }
 
@@ -157,8 +162,8 @@ export class UIController {
         const { gridX, gridY } = this._getGridPos(event);
         
         if (this.mouseMode === 'draw') {
-            const isErasing = (event.buttons & 2) !== 0; // use bitwise AND to check for right mouse button
-            this._applyBrush(gridX, gridY, isErasing);
+            // use persistent state instead of unreliable event.buttons during mousemove
+            this._applyBrush(gridX, gridY, this.isErasing);
         } else if (this.mouseMode === 'drag') {
             const dx = Math.floor((event.clientX - this.startDragPos.screenX) * this.scaleX);
             const dy = -Math.floor((event.clientY - this.startDragPos.screenY) * this.scaleY);
@@ -173,6 +178,7 @@ export class UIController {
     _handleMouseUp(event) {
         if (!this.isDragging) return;
         this.isDragging = false;
+        this.isErasing = false; // reset erase state
         const { gridX, gridY } = this._getGridPos(event);
 
         if (this.mouseMode === 'nudge') {

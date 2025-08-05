@@ -8,18 +8,18 @@ const canvas = document.getElementById('sim-canvas');
 if (!canvas) {
     throw new Error('Critical error: Canvas element with id "sim-canvas" not found in DOM. Check index.html structure.');
 }
-// === DPR-AWARE CANVAS SIZING (Bug #12 fix) ===
+// === DPR-AWARE CANVAS SIZING (Bug fixed) ===
 const devicePixelRatio = window.devicePixelRatio || 1;
 const backingStoreWidth = Math.ceil(C.GRID_SIZE * devicePixelRatio);
 const backingStoreHeight = Math.ceil(C.GRID_SIZE * devicePixelRatio);
 
-// Set backing store dimensions for sharp rendering on high-DPI displays
+// set backing store dimensions for sharp rendering on high-DPI displays
 canvas.width = backingStoreWidth;
 canvas.height = backingStoreHeight;
 
 console.log(`[DPR FIX] Canvas sizing - DPR: ${devicePixelRatio}, CSS: ${C.GRID_SIZE}x${C.GRID_SIZE}, Backing store: ${backingStoreWidth}x${backingStoreHeight}`);
 
-// Validate against WebGL texture limits
+// validate against WebGL texture limits
 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 if (gl) {
     const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
@@ -30,7 +30,7 @@ if (gl) {
     }
 }
 
-// Store current DPR for change detection
+// store current DPR for change detection
 let currentDPR = devicePixelRatio;
 const state = new SimulationState();
 const engine = new ComputationEngine(state.gridSize);
@@ -38,7 +38,7 @@ const renderer = new Renderer(canvas);
 // eslint-disable-next-line no-unused-vars
 const uiController = new UIController(canvas, state);
 
-// Error tracking for robustness monitoring
+// error tracking for robustness monitoring
 let computationErrorCount = 0;
 let renderingErrorCount = 0;
 let consecutiveComputationErrors = 0;
@@ -48,7 +48,7 @@ let skipComputationFrames = 0;
 
 /**
  * animation loop with comprehensive error handling
- * guarantees RAF continuation even during exceptions - fixes bug #8
+ * guarantees RAF continuation even during exceptions - fixes bug
  */
 function gameLoop() {
     const frameStart = performance.now();
@@ -139,7 +139,7 @@ function gameLoop() {
 
 gameLoop();
 
-// === DPR CHANGE DETECTION AND RECOVERY (Bug #12) ===
+// === DPR CHANGE DETECTION AND RECOVERY (Bug fixed) ===
 function handleDPRChange() {
     const newDPR = window.devicePixelRatio || 1;
     if (newDPR !== currentDPR) {
@@ -148,30 +148,30 @@ function handleDPRChange() {
         const newBackingStoreWidth = Math.ceil(C.GRID_SIZE * newDPR);
         const newBackingStoreHeight = Math.ceil(C.GRID_SIZE * newDPR);
         
-        // Validate against WebGL texture limits
+        // validate against WebGL texture limits
         const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
         if (gl) {
             const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
             if (newBackingStoreWidth > maxTextureSize || newBackingStoreHeight > maxTextureSize) {
                 console.warn(`[DPR CHANGE] New backing store ${newBackingStoreWidth}x${newBackingStoreHeight} exceeds max texture size ${maxTextureSize}, keeping current size`);
-                return; // Don't change if it would exceed limits
+                return; // don't change if it would exceed limits
             }
         }
         
-        // Update canvas backing store
+        // update canvas backing store
         canvas.width = newBackingStoreWidth;
         canvas.height = newBackingStoreHeight;
         
-        // Recreate renderer with new dimensions (preserves simulation state)
+        // recreate renderer with new dimensions (preserves simulation state)
         try {
             const newRenderer = new Renderer(canvas);
-            // Replace the old renderer reference
+            // replace the old renderer reference
             Object.setPrototypeOf(renderer, newRenderer.constructor.prototype);
             Object.assign(renderer, newRenderer);
             console.log(`[DPR CHANGE] Successfully updated renderer for ${newBackingStoreWidth}x${newBackingStoreHeight} backing store`);
         } catch (error) {
             console.error('[DPR CHANGE] Failed to recreate renderer:', error.message);
-            // Fallback: revert canvas size
+            // fallback: revert canvas size
             canvas.width = Math.ceil(C.GRID_SIZE * currentDPR);
             canvas.height = Math.ceil(C.GRID_SIZE * currentDPR);
             return;
@@ -181,7 +181,7 @@ function handleDPRChange() {
     }
 }
 
-// Monitor for DPR changes (browser zoom, display switching, window dragging between displays)
+// monitor for DPR changes (browser zoom, display switching, window dragging between displays)
 window.addEventListener('resize', handleDPRChange);
 window.addEventListener('orientationchange', handleDPRChange);
 

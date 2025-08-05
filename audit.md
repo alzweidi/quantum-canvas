@@ -738,7 +738,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**12. Missing DPR-Aware Canvas Sizing** 
+**12. Missing DPR-Aware Canvas Sizing**  (FIXED AND COMMITTED)
 
   
 
