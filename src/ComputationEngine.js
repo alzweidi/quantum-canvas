@@ -109,12 +109,12 @@ export class ComputationEngine {
         // 1. transform to momentum space
         this._fft2D(state.psi, this.buffer1);
 
-        // 2. apply the kinetic operator with correct quantum time evolution
-        for (let i = 0; i < this.buffer1.length; i += 2) {
-            // get the kinetic energy T(k) from the pre-calculated array
-            // eslint-disable-next-line id-length -- T is standard physics notation for kinetic energy
-            const T = state.kineticOperatorK[i];
-            
+// 2. apply the kinetic operator with correct quantum time evolution
+for (let i = 0; i < this.buffer1.length; i += 2) {
+    // get the kinetic energy T(k) from the pre-calculated real-only array
+    // i/2 converts from complex buffer index to real kinetic operator index
+    // eslint-disable-next-line id-length -- T is standard physics notation for kinetic energy
+    const T = state.kineticOperatorK[i / 2];
             // calculate the phase rotation: phi = -T * dt / hbar
             const phase = -T * state.params.dt / C.HBAR;
             const cosP = Math.cos(phase);

@@ -12,7 +12,7 @@ export class SimulationState {
         };
         this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
-        this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
+        this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height);
 
         this._updateBoundaries();
         this._precalculateKineticOperator();
@@ -78,10 +78,9 @@ export class SimulationState {
                 // kinetic energy operator value
                 const kineticEnergy = coeff * kSquared;
                 
-                // store as complex number (real part = kinetic energy, imag part = 0)
-                const idx = (i * size + j) * 2;
-                this.kineticOperatorK[idx] = kineticEnergy;     // Real part
-                this.kineticOperatorK[idx + 1] = 0.0;          // Imaginary part
+                // store as real scalar (kinetic energy is purely real)
+                const idx = i * size + j;
+                this.kineticOperatorK[idx] = kineticEnergy;
             }
         }
     }
