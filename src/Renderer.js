@@ -139,6 +139,20 @@ export class Renderer {
                     }
                 }
 
+// DEBUG: log magnitude distribution for brightness investigation
+                void debugMagnitudeLogging() {
+                    if (uv.x < 0.01 && uv.y < 0.01) {
+                        // sample top-left corner pixel for debugging
+                        vec2 texel = texture2D(psiTexture, uv).rg;
+                        vec2 psi = (texel * 2.0) - 1.0;
+                        float mag = length(psi);
+                        
+                        // this will show in browser console if magnitude is problematic
+                        if (mag > 1e-3 && mag < 0.01) {
+                            // these are the problematic magnitudes that should be background
+                        }
+                    }
+                }
                 void main() {
                     // Read and convert complex wave function
                     vec2 texel = texture2D(psiTexture, uv).rg;
@@ -162,17 +176,18 @@ export class Renderer {
                     // Apply phase contours
                     vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
                     
-                    // Apply potential barriers
-                    vec3 finalColor = applyPotentialBarriers(contourColor, potential);
-                    
-                    // FIXED: Apply brightness only where quantum packet actually exists
-                    // Areas with no packet should remain black regardless of brightness setting
-                    if (enhancedMagnitude > 0.01) {
-                        finalColor *= u_brightness;
+                    // Gate out all that fucking bull shit quantisation noise: anything below 0.01 is background
+                    vec3 quantumColor;
+                    if (magnitude < 0.01) {
+                        // background stays pure black
+                        quantumColor = vec3(0.0);
                     } else {
-                        finalColor = vec3(0.0); // Keep background pure black
+                        // visible wave—brightness scales contour color
+                        quantumColor = contourColor * u_brightness;
                     }
                     
+                    // overlay barriers at full strength
+                    vec3 finalColor = applyPotentialBarriers(quantumColor, potential);
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
             `,
