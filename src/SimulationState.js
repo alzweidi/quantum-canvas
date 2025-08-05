@@ -64,7 +64,9 @@ export class SimulationState {
      */
     _precalculateKineticOperator() {
         const size = this.gridSize.width;
-        const dk = (2.0 * Math.PI) / size;
+        // FIX: k-space frequency calculation must include physical grid spacing
+        const dx = C.DOMAIN_SIZE / this.gridSize.width;
+        const dk = (2.0 * Math.PI) / (size * dx);
         const coeff = (C.HBAR * C.HBAR) / (2.0 * C.MASS);
 
         for (let i = 0; i < size; i++) {
@@ -92,11 +94,10 @@ export class SimulationState {
      * @private
      */
     resetWaveFunction() {
-        // DEBUG: Log reset position values
-        console.log(`DEBUG: Reset position - x0: ${this.params.x0}, y0: ${this.params.y0}, expected center: ${this.gridSize.width/2}`);
         const size = this.gridSize.width;
-        const dx = 1.0; // grid spacing
-        const dy = 1.0;
+        // FIX: calculate grid spacing from physical domain size and resolution
+        const dx = C.DOMAIN_SIZE / this.gridSize.width;
+        const dy = C.DOMAIN_SIZE / this.gridSize.height;
         
         // use tunable position parameters
         const x0 = this.params.x0;

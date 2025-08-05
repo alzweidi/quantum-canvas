@@ -1,11 +1,12 @@
 export const GRID_SIZE = 256;
+export const DOMAIN_SIZE = 512.0; // physical domain size (independent of resolution)
 export const HBAR = 1;
 export const MASS = 1;
 export const INITIAL_DT = 0.005;
 export const INITIAL_SIGMA = 15.0;
 export const INITIAL_P_X = 60.0;
 export const INITIAL_P_Y = 0.0;
-export const INITIAL_X0 = GRID_SIZE / 2;
-export const INITIAL_Y0 = GRID_SIZE / 2;
+export const INITIAL_X0 = DOMAIN_SIZE / 2; // center in physical coordinates
+export const INITIAL_Y0 = DOMAIN_SIZE / 2;
 export const POTENTIAL_STRENGTH = 100.0;
 export const BORDER_STRENGTH = 1e6;
