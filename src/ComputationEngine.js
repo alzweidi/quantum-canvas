@@ -56,7 +56,7 @@ export class ComputationEngine {
      * @param {SimulationState} state - the simulation state to advance
      */
     step(state) {
-        this._applyPotential(state, state.params.dt / 2.0);
+        this._applyPotential(state);
         
         // fixed a BUG: applied absorbing boundaries BEFORE kinetic evolution
         // which prevents wrap artifacts during FFT-based kinetic step in k-space
@@ -64,7 +64,7 @@ export class ComputationEngine {
         state._applyAbsorbingBoundaries();
         
         this._applyKinetic(state);
-        this._applyPotential(state, state.params.dt / 2.0);
+        this._applyPotential(state);
         
         // keep post-step absorption for additional safety
         state._applyAbsorbingBoundaries();
@@ -74,10 +74,9 @@ export class ComputationEngine {
      * apply potential operator to wave function in position space
      * multiplies by exp(-i*phase) for each grid point where phase is stored directly
      * @param {SimulationState} state - the simulation state
-     * @param {number} dt - time step for this potential application (unused for barriers)
      * @private
      */
-    _applyPotential(state, dt) {
+    _applyPotential(state) {
         const psi = state.psi;
         const potential = state.potential;
 
