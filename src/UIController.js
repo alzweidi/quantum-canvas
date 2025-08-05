@@ -42,15 +42,14 @@ export class UIController {
                 });
             });
         }
-
-        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
-        this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
-        this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
-        this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
-        this.canvas.addEventListener('mouseleave', () => {
-            this.isDragging = false;
-            this.isErasing = false; // reset erase state on mouse leave
-        });
+this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
+this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
+this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
+this.canvas.addEventListener('mouseleave', () => {
+    this.isDragging = false;
+    this.isErasing = false; // reset erase state on mouse leave
+});
         window.addEventListener('resize', this.updateScaling.bind(this));
 
         // other controls
@@ -136,6 +135,14 @@ export class UIController {
         });
     }
 
+_getGridPos(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const gridX = Math.floor(x * this.scaleX);
+    const gridY = Math.floor((rect.height - y) * this.scaleY);
+    return { gridX, gridY };
+}
     _getGridPos(event) {
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -494,16 +501,18 @@ export class UIController {
 
     /**
      * update canvas scaling factors with DPR awareness
-     * fixed: now accounts for devicePixelRatio changes for accurate mouse mapping
+     * FIXED: correct mouse-to-grid coordinate mapping
      */
     updateScaling() {
         const rect = this.canvas.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
         
-        // fixed: account for device pixel ratio in scaling calculation
-        // this ensures accurate mouse-to-grid coordinate mapping under all DPR conditions
-        this.scaleX = this.state.gridSize.width / (rect.width * dpr);
-        this.scaleY = this.state.gridSize.height / (rect.height * dpr);
+        // FIXED: Do NOT multiply rect dimensions by DPR for mouse coordinate mapping
+        // rect.width/height are already in CSS pixels, which is what mouse events use
+        // DPR scaling is handled at the canvas backing store level, not coordinate mapping
+        this.scaleX = this.state.gridSize.width / rect.width;
+        this.scaleY = this.state.gridSize.height / rect.height;
+        
     }
     
     /**
