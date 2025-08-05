@@ -12,6 +12,10 @@ export class UIController {
         this._setupEventListeners();
         this.updateScaling();
         this._syncUIToState();
+        
+        // initialise DPR monitoring for robust scaling
+        this.lastDevicePixelRatio = window.devicePixelRatio || 1;
+        this._setupDPRMonitoring();
     }
 
     _setupEventListeners() {
@@ -394,9 +398,112 @@ export class UIController {
         }
     }
 
+    /**
+     * setup robust DPR monitoring to detect zoom and display changes
+     * uses multiple detection strategies for maximum reliability
+     */
+    _setupDPRMonitoring() {
+        // strategy 1: matchMedia for zoom detection (most efficient)
+        this.mediaQueries = [];
+        
+        // monitor common zoom levels that change DPR
+        const zoomLevels = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+        zoomLevels.forEach(zoom => {
+            try {
+                const query = window.matchMedia(`(resolution: ${zoom}dppx)`);
+                const handler = () => this._handleDPRChange();
+                query.addListener(handler);
+                this.mediaQueries.push({ query, handler });
+            } catch (e) {
+                // fallback for browsers that don't support resolution queries
+            }
+        });
+        
+        // strategy 2: polling fallback with throttling
+        this.dprCheckInterval = setInterval(() => {
+            this._checkDPRChange();
+        }, 1000); // check every second (less aggressive than experiment)
+        
+        // strategy 3: visual viewport API if available
+        if (window.visualViewport) {
+            const handler = () => this._handleDPRChange();
+            window.visualViewport.addEventListener('resize', handler);
+            this.visualViewportHandler = handler;
+        }
+    }
+    
+    /**
+     * check for devicePixelRatio changes (polling strategy)
+     */
+    _checkDPRChange() {
+        const currentDPR = window.devicePixelRatio || 1;
+        if (Math.abs(currentDPR - this.lastDevicePixelRatio) > 0.01) {
+            this.lastDevicePixelRatio = currentDPR;
+            this._handleDPRChange();
+        }
+    }
+    
+    /**
+     * handle DPR changes with throttling to prevent excessive updates
+     */
+    _handleDPRChange() {
+        // throttle updates to prevent excessive recalculation
+        if (this.dprUpdatePending) return;
+        
+        this.dprUpdatePending = true;
+        requestAnimationFrame(() => {
+            this.updateScaling();
+            this.dprUpdatePending = false;
+        });
+    }
+    
+    /**
+     * cleanup DPR monitoring resources to prevent memory leaks
+     */
+    _cleanupDPRMonitoring() {
+        // clear polling interval
+        if (this.dprCheckInterval) {
+            clearInterval(this.dprCheckInterval);
+            this.dprCheckInterval = null;
+        }
+        
+        // remove media query listeners
+        if (this.mediaQueries) {
+            this.mediaQueries.forEach(({ query, handler }) => {
+                try {
+                    query.removeListener(handler);
+                } catch (e) {
+                    // ignore cleanup errors
+                }
+            });
+            this.mediaQueries = [];
+        }
+        
+        // remove visual viewport listener
+        if (this.visualViewportHandler && window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', this.visualViewportHandler);
+            this.visualViewportHandler = null;
+        }
+    }
+
+    /**
+     * update canvas scaling factors with DPR awareness
+     * fixed: now accounts for devicePixelRatio changes for accurate mouse mapping
+     */
     updateScaling() {
         const rect = this.canvas.getBoundingClientRect();
-        this.scaleX = this.state.gridSize.width / rect.width;
-        this.scaleY = this.state.gridSize.height / rect.height;
+        const dpr = window.devicePixelRatio || 1;
+        
+        // fixed: account for device pixel ratio in scaling calculation
+        // this ensures accurate mouse-to-grid coordinate mapping under all DPR conditions
+        this.scaleX = this.state.gridSize.width / (rect.width * dpr);
+        this.scaleY = this.state.gridSize.height / (rect.height * dpr);
+    }
+    
+    /**
+     * cleanup resources when controller is destroyed
+     */
+    destroy() {
+        this._cleanupDPRMonitoring();
     }
 }

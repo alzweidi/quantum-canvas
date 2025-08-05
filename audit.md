@@ -666,7 +666,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**9. Preset Bounds Validation Missing**
+**9. Preset Bounds Validation Missing** (FIXED AND COMMITTED)
 
   
 
@@ -688,7 +688,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**10. 2D FFT Dimension Swap Risk**
+**10. 2D FFT Dimension Swap Risk** (FIXED AND COMMITTED)
 
   
 
