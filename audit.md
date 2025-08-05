@@ -622,7 +622,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**7. Missing DOM Element Null Checks**
+**7. Missing DOM Element Null Checks**  (FIXED AND COMMITTED)
 
   
 
@@ -644,7 +644,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**8. Unguarded Per-Frame Loop**
+**8. Unguarded Per-Frame Loop** (FIXED AND COMMITTED)
 
   
 
