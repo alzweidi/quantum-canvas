@@ -4,45 +4,57 @@
  */
 
 export const PRESETS = {
-    DOUBLE_SLIT: {
-        description: "demonstrates wave-particle duality and interference.",
-        draw: (potential, width, height, barrierPhaseKick) => {
-            const barrierCenterX = Math.floor(width / 2);
-            const barrierWidth = 4; // thickness of the barrier wall
-            const slitHeight = 12; // height of each slit opening
-            const slitGap = 20;    // gap between the centers of the two slits
-            
-            // position the slits symmetrically around the vertical center
-            const slit1_CenterY = Math.floor(height / 2 - slitGap / 2);
-            const slit2_CenterY = Math.floor(height / 2 + slitGap / 2);
+  DOUBLE_SLIT: {
+    description: 'demonstrates wave-particle duality and interference.',
+    draw: (potential, width, height, barrierPhaseKick) => {
+      const barrierCenterX = Math.floor(width / 2)
+      const barrierWidth = 4 // thickness of the barrier wall
+      const slitHeight = 12 // height of each slit opening
+      const slitGap = 20 // gap between the centers of the two slits
 
-            for (let x = barrierCenterX - barrierWidth / 2; x < barrierCenterX + barrierWidth / 2; x++) {
-                for (let y = 0; y < height; y++) {
-                    // check if the current y-position is within the bounds of either slit
-                    const inSlit1 = (y >= slit1_CenterY - slitHeight / 2) && (y < slit1_CenterY + slitHeight / 2);
-                    const inSlit2 = (y >= slit2_CenterY - slitHeight / 2) && (y < slit2_CenterY + slitHeight / 2);
+      // position the slits symmetrically around the vertical center
+      const slit1_CenterY = Math.floor(height / 2 - slitGap / 2)
+      const slit2_CenterY = Math.floor(height / 2 + slitGap / 2)
 
-                    // if the pixel is NOT in a slit, draw the barrier
-                    if (!inSlit1 && !inSlit2) {
-                        const idx = y * width + Math.floor(x);
-                        potential[idx] = barrierPhaseKick * 2.0; // strong barrier for reflection
-                    }
-                }
-            }
+      for (
+        let x = barrierCenterX - barrierWidth / 2;
+        x < barrierCenterX + barrierWidth / 2;
+        x++
+      ) {
+        for (let y = 0; y < height; y++) {
+          // check if the current y-position is within the bounds of either slit
+          const inSlit1 =
+            y >= slit1_CenterY - slitHeight / 2 &&
+            y < slit1_CenterY + slitHeight / 2
+          const inSlit2 =
+            y >= slit2_CenterY - slitHeight / 2 &&
+            y < slit2_CenterY + slitHeight / 2
+
+          // if the pixel is NOT in a slit, draw the barrier
+          if (!inSlit1 && !inSlit2) {
+            const idx = y * width + Math.floor(x)
+            potential[idx] = barrierPhaseKick * 2.0 // strong barrier for reflection
+          }
         }
-    },
-    TUNNELING: {
-        description: "shows quantum tunneling through a potential barrier.",
-        draw: (potential, width, height, barrierPhaseKick) => {
-            const barrierCenterX = Math.floor(width / 2);
-            const barrierThickness = 5;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = barrierCenterX - barrierThickness / 2; x < barrierCenterX + barrierThickness / 2; x++) {
-                    const idx = y * width + Math.floor(x);
-                    potential[idx] = barrierPhaseKick; // moderate barrier for tunneling
-                }
-            }
-        }
+      }
     }
-};
+  },
+  TUNNELING: {
+    description: 'shows quantum tunneling through a potential barrier.',
+    draw: (potential, width, height, barrierPhaseKick) => {
+      const barrierCenterX = Math.floor(width / 2)
+      const barrierThickness = 5
+
+      for (let y = 0; y < height; y++) {
+        for (
+          let x = barrierCenterX - barrierThickness / 2;
+          x < barrierCenterX + barrierThickness / 2;
+          x++
+        ) {
+          const idx = y * width + Math.floor(x)
+          potential[idx] = barrierPhaseKick // moderate barrier for tunneling
+        }
+      }
+    }
+  }
+}
