@@ -9,6 +9,11 @@ export function fft(real, imag) {
     const n = real.length;
     if (n <= 1) return;
 
+    // validate that input size is a power of 2
+    if (!Number.isInteger(Math.log2(n))) {
+        throw new Error(`FFT requires input size to be a power of 2, but got ${n}. Valid sizes: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, etc.`);
+    }
+
     // bit-reverse the input
     const bitCount = Math.log2(n);
     for (let i = 0; i < n; i++) {
@@ -23,7 +28,6 @@ export function fft(real, imag) {
             [imag[i], imag[j]] = [imag[j], imag[i]];
         }
     }
-
     // cooley-tukey FFT
     for (let len = 2; len <= n; len *= 2) {
         const halfLen = len / 2;
@@ -60,6 +64,11 @@ export function fft(real, imag) {
  */
 export function ifft(real, imag) {
     const n = real.length;
+    
+    // validate that input size is a power of 2
+    if (!Number.isInteger(Math.log2(n))) {
+        throw new Error(`IFFT requires input size to be a power of 2, but got ${n}. Valid sizes: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, etc.`);
+    }
     
     // conjugate input
     for (let i = 0; i < n; i++) {
