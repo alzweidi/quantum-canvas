@@ -1,88 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+  <head>
     <title>Absorption Time-Step Independence Test</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Absorption Time-Step Independence Validation</h1>
     <div id="results"></div>
 
     <script>
-        // numerical smoke test
-        function smokeTest() {
-            const boundaryWidth = 10;
-            const minDist = 5;
-            const gamma = 0.1 * (boundaryWidth - minDist); // gamma = 0.5
-            
-            // test different dt values
-            const dt1 = 0.01;
-            const dt2 = 0.005;
-            
-            const F1 = Math.exp(-gamma * dt1);           // one step of 0.01
-            const F2 = Math.pow(Math.exp(-gamma * dt2), 2); // two steps of 0.005
-            
-            console.log('Smoke Test Results:');
-            console.log(`F1 (dt=0.01, 1 step): ${F1}`);
-            console.log(`F2 (dt=0.005, 2 steps): ${F2}`);
-            console.log(`Difference: ${Math.abs(F1 - F2)}`);
-            console.log(`Match within floating point precision: ${Math.abs(F1 - F2) < 1e-15}`);
-            
-            return Math.abs(F1 - F2) < 1e-15;
+      // numerical smoke test
+      function smokeTest() {
+        const boundaryWidth = 10;
+        const minDist = 5;
+        const gamma = 0.1 * (boundaryWidth - minDist); // gamma = 0.5
+
+        // test different dt values
+        const dt1 = 0.01;
+        const dt2 = 0.005;
+
+        const F1 = Math.exp(-gamma * dt1); // one step of 0.01
+        const F2 = Math.pow(Math.exp(-gamma * dt2), 2); // two steps of 0.005
+
+        console.log("Smoke Test Results:");
+        console.log(`F1 (dt=0.01, 1 step): ${F1}`);
+        console.log(`F2 (dt=0.005, 2 steps): ${F2}`);
+        console.log(`Difference: ${Math.abs(F1 - F2)}`);
+        console.log(
+          `Match within floating point precision: ${Math.abs(F1 - F2) < 1e-15}`,
+        );
+
+        return Math.abs(F1 - F2) < 1e-15;
+      }
+
+      // unit test for time-step independence
+      function unitTestTimeStepIndependence() {
+        const boundaryWidth = 10;
+        const totalTime = 0.1; // Physical time T
+
+        // create dummy wave function (just magnitude, simplified)
+        const gridSize = 32;
+        const initialNorm = 100.0;
+
+        // test case 1: dt = 0.01 (10 steps)
+        const dt1 = 0.01;
+        const steps1 = Math.round(totalTime / dt1);
+        let norm1 = initialNorm;
+
+        for (let step = 0; step < steps1; step++) {
+          // simulate absorption at boundary (minDist = 5)
+          const gamma = 0.1 * (boundaryWidth - 5);
+          const dampingFactor = Math.exp(-gamma * dt1);
+          norm1 *= dampingFactor;
         }
-        
-        // unit test for time-step independence
-        function unitTestTimeStepIndependence() {
-            const boundaryWidth = 10;
-            const totalTime = 0.1; // Physical time T
-            
-            // create dummy wave function (just magnitude, simplified)
-            const gridSize = 32;
-            const initialNorm = 100.0;
-            
-            // test case 1: dt = 0.01 (10 steps)
-            const dt1 = 0.01;
-            const steps1 = Math.round(totalTime / dt1);
-            let norm1 = initialNorm;
-            
-            for (let step = 0; step < steps1; step++) {
-                // simulate absorption at boundary (minDist = 5)
-                const gamma = 0.1 * (boundaryWidth - 5);
-                const dampingFactor = Math.exp(-gamma * dt1);
-                norm1 *= dampingFactor;
-            }
-            
-            // test case 2: dt = 0.005 (20 steps)
-            const dt2 = 0.005;
-            const steps2 = Math.round(totalTime / dt2);
-            let norm2 = initialNorm;
-            
-            for (let step = 0; step < steps2; step++) {
-                const gamma = 0.1 * (boundaryWidth - 5);
-                const dampingFactor = Math.exp(-gamma * dt2);
-                norm2 *= dampingFactor;
-            }
-            
-            console.log('\nUnit Test Results:');
-            console.log(`Final norm (dt=0.01, ${steps1} steps): ${norm1}`);
-            console.log(`Final norm (dt=0.005, ${steps2} steps): ${norm2}`);
-            console.log(`Relative difference: ${Math.abs(norm1 - norm2) / norm1}`);
-            console.log(`Time-step independent: ${Math.abs(norm1 - norm2) / norm1 < 1e-12}`);
-            
-            return Math.abs(norm1 - norm2) / norm1 < 1e-12;
+
+        // test case 2: dt = 0.005 (20 steps)
+        const dt2 = 0.005;
+        const steps2 = Math.round(totalTime / dt2);
+        let norm2 = initialNorm;
+
+        for (let step = 0; step < steps2; step++) {
+          const gamma = 0.1 * (boundaryWidth - 5);
+          const dampingFactor = Math.exp(-gamma * dt2);
+          norm2 *= dampingFactor;
         }
-        
-        // run tests
-        const smokeTestPassed = smokeTest();
-        const unitTestPassed = unitTestTimeStepIndependence();
-        
-        const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = `
+
+        console.log("\nUnit Test Results:");
+        console.log(`Final norm (dt=0.01, ${steps1} steps): ${norm1}`);
+        console.log(`Final norm (dt=0.005, ${steps2} steps): ${norm2}`);
+        console.log(`Relative difference: ${Math.abs(norm1 - norm2) / norm1}`);
+        console.log(
+          `Time-step independent: ${Math.abs(norm1 - norm2) / norm1 < 1e-12}`,
+        );
+
+        return Math.abs(norm1 - norm2) / norm1 < 1e-12;
+      }
+
+      // run tests
+      const smokeTestPassed = smokeTest();
+      const unitTestPassed = unitTestTimeStepIndependence();
+
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = `
             <h2>Test Results</h2>
-            <p><strong>Smoke Test:</strong> ${smokeTestPassed ? 'PASSED' : 'FAILED'}</p>
-            <p><strong>Unit Test:</strong> ${unitTestPassed ? 'PASSED' : 'FAILED'}</p>
-            <p><strong>Overall:</strong> ${smokeTestPassed && unitTestPassed ? 'All tests passed - Bug #2 fix validated!' : 'Some tests failed'}</p>
+            <p><strong>Smoke Test:</strong> ${smokeTestPassed ? "PASSED" : "FAILED"}</p>
+            <p><strong>Unit Test:</strong> ${unitTestPassed ? "PASSED" : "FAILED"}</p>
+            <p><strong>Overall:</strong> ${smokeTestPassed && unitTestPassed ? "All tests passed - Bug #2 fix validated!" : "Some tests failed"}</p>
             <p>Check browser console for detailed results.</p>
         `;
     </script>
-</body>
+  </body>
 </html>
