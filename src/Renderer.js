@@ -3,50 +3,56 @@
  * visualises complex wave function data as colorful patterns
  */
 export class Renderer {
-    /**
-     * initialise the WebGL renderer with regl
-     * @param {HTMLCanvasElement} canvasElement - the canvas to render to
-     */
-    constructor(canvasElement) {
-        this.canvas = canvasElement;
-        this.regl = window.createREGL(canvasElement);
+  /**
+   * initialise the WebGL renderer with regl
+   * @param {HTMLCanvasElement} canvasElement - the canvas to render to
+   */
+  constructor (canvasElement) {
+    this.canvas = canvasElement
+    this.regl = window.createREGL(canvasElement)
 
-        // store backing store dimensions (DPR-aware)
-        this.backingStoreWidth = canvasElement.width;
-        this.backingStoreHeight = canvasElement.height;
-        
-        console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
+    // store backing store dimensions (DPR-aware)
+    this.backingStoreWidth = canvasElement.width
+    this.backingStoreHeight = canvasElement.height
 
-        // create texture for wave function data using unsigned bytes
-        this.psiTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    console.log(
+      `[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`
+    )
 
-        // create texture for potential barriers
-        this.potentialTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    // create texture for wave function data using unsigned bytes
+    this.psiTexture = this.regl.texture({
+      width: this.backingStoreWidth,
+      height: this.backingStoreHeight,
+      format: 'rgba',
+      type: 'uint8',
+      data: null,
+      mag: 'linear',
+      min: 'linear'
+    })
 
-        // pre-allocate texture data buffers for performance (using bytes) - DPR-aware size
-        this.textureDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
-        this.potentialDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
+    // create texture for potential barriers
+    this.potentialTexture = this.regl.texture({
+      width: this.backingStoreWidth,
+      height: this.backingStoreHeight,
+      format: 'rgba',
+      type: 'uint8',
+      data: null,
+      mag: 'linear',
+      min: 'linear'
+    })
 
-        // create the main rendering command - WebGL compatible version
-        this.drawCommand = this.regl({
-            // vertex shader - sets up fullscreen quad
-            vert: `
+    // pre-allocate texture data buffers for performance (using bytes) - DPR-aware size
+    this.textureDataBuffer = new Uint8Array(
+      this.backingStoreWidth * this.backingStoreHeight * 4
+    )
+    this.potentialDataBuffer = new Uint8Array(
+      this.backingStoreWidth * this.backingStoreHeight * 4
+    )
+
+    // create the main rendering command - WebGL compatible version
+    this.drawCommand = this.regl({
+      // vertex shader - sets up fullscreen quad
+      vert: `
                 precision mediump float;
                 attribute vec2 position;
                 varying vec2 uv;
@@ -56,8 +62,8 @@ export class Renderer {
                 }
             `,
 
-            // fragment shader - simplified quantum wave function visualization
-            frag: `
+      // fragment shader - simplified quantum wave function visualization
+      frag: `
                 precision mediump float;
                 uniform sampler2D psiTexture;
                 uniform sampler2D potentialTexture;
@@ -177,91 +183,100 @@ export class Renderer {
                 }
             `,
 
-            // attributes - fullscreen quad vertices
-            attributes: {
-                position: [
-                    [-1, -1], [1, -1], [-1, 1],
-                    [-1, 1], [1, -1], [1, 1]
-                ]
-            },
+      // attributes - fullscreen quad vertices
+      attributes: {
+        position: [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [-1, 1],
+          [1, -1],
+          [1, 1]
+        ]
+      },
 
-            // uniforms - pass wave function and potential textures
-            uniforms: {
-                psiTexture: this.psiTexture,
-                potentialTexture: this.potentialTexture,
-                u_brightness: this.regl.prop('brightness'),
-                u_textureSize: [this.backingStoreWidth, this.backingStoreHeight]
-            },
+      // uniforms - pass wave function and potential textures
+      uniforms: {
+        psiTexture: this.psiTexture,
+        potentialTexture: this.potentialTexture,
+        u_brightness: this.regl.prop('brightness'),
+        u_textureSize: [this.backingStoreWidth, this.backingStoreHeight]
+      },
 
-            // draw 6 vertices (2 triangles = fullscreen quad)
-            count: 6
-        });
+      // draw 6 vertices (2 triangles = fullscreen quad)
+      count: 6
+    })
+  }
+
+  /**
+   * render the current quantum state to the canvas
+   * @param {SimulationState} state - the simulation state to visualise
+   */
+  draw (state) {
+    // simulation grid size (always 256x256)
+    const simGridSize = Math.sqrt(state.psi.length / 2) // complex numbers = length/2
+    const scaleX = this.backingStoreWidth / simGridSize
+    const scaleY = this.backingStoreHeight / simGridSize
+
+    // pack complex wave function data into rgba texture format with DPR scaling
+    // convert float values to 0-255 byte range for uint8 texture
+    for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
+      for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
+        // map backing store coordinates to simulation grid coordinates
+        const simX = Math.floor(backingX / scaleX)
+        const simY = Math.floor(backingY / scaleY)
+        const simIdx = (simY * simGridSize + simX) * 2 // complex array index
+        const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4 // rgba index
+
+        // convert float values to 0-255 range
+        // map from [-1, 1] to [0, 255] with offset for negative values
+        const real = state.psi[simIdx]
+        const imag = state.psi[simIdx + 1]
+
+        this.textureDataBuffer[backingIdx] = Math.floor((real + 1.0) * 127.5) // real -> r
+        this.textureDataBuffer[backingIdx + 1] = Math.floor(
+          (imag + 1.0) * 127.5
+        ) // imag -> g
+        this.textureDataBuffer[backingIdx + 2] = 0 // blue
+        this.textureDataBuffer[backingIdx + 3] = 255 // alpha
+      }
     }
 
-    /**
-     * render the current quantum state to the canvas
-     * @param {SimulationState} state - the simulation state to visualise
-     */
-    draw(state) {
-        // simulation grid size (always 256x256)
-        const simGridSize = Math.sqrt(state.psi.length / 2); // complex numbers = length/2
-        const scaleX = this.backingStoreWidth / simGridSize;
-        const scaleY = this.backingStoreHeight / simGridSize;
-        
-        // pack complex wave function data into rgba texture format with DPR scaling
-        // convert float values to 0-255 byte range for uint8 texture
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                const simX = Math.floor(backingX / scaleX);
-                const simY = Math.floor(backingY / scaleY);
-                const simIdx = (simY * simGridSize + simX) * 2; // complex array index
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // convert float values to 0-255 range
-                // map from [-1, 1] to [0, 255] with offset for negative values
-                const real = state.psi[simIdx];
-                const imag = state.psi[simIdx + 1];
-                
-                this.textureDataBuffer[backingIdx] = Math.floor((real + 1.0) * 127.5);     // real -> r
-                this.textureDataBuffer[backingIdx + 1] = Math.floor((imag + 1.0) * 127.5); // imag -> g
-                this.textureDataBuffer[backingIdx + 2] = 0;                                // blue
-                this.textureDataBuffer[backingIdx + 3] = 255;                              // alpha
-            }
-        }
+    // pack potential barrier data into rgba texture format with DPR scaling
+    for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
+      for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
+        // map backing store coordinates to simulation grid coordinates
+        const simX = Math.floor(backingX / scaleX)
+        const simY = Math.floor(backingY / scaleY)
+        const simIdx = simY * simGridSize + simX
+        const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4 // rgba index
 
-        // pack potential barrier data into rgba texture format with DPR scaling
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                const simX = Math.floor(backingX / scaleX);
-                const simY = Math.floor(backingY / scaleY);
-                const simIdx = simY * simGridSize + simX;
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // normalise potential (typically 0-100) to 0-255 range
-                const normalizedPotential = Math.min(255, Math.floor(state.potential[simIdx] * 2.55));
-                
-                this.potentialDataBuffer[backingIdx] = normalizedPotential;     // potential -> r
-                this.potentialDataBuffer[backingIdx + 1] = 0;                   // green
-                this.potentialDataBuffer[backingIdx + 2] = 0;                   // blue
-                this.potentialDataBuffer[backingIdx + 3] = 255;                 // alpha
-            }
-        }
+        // normalise potential (typically 0-100) to 0-255 range
+        const normalizedPotential = Math.min(
+          255,
+          Math.floor(state.potential[simIdx] * 2.55)
+        )
 
-        // upload texture data to GPU
-        this.psiTexture.subimage(this.textureDataBuffer);
-        this.potentialTexture.subimage(this.potentialDataBuffer);
-
-        // clear canvas and render
-        this.regl.clear({
-            color: [0, 0, 0, 1],
-            depth: 1
-        });
-
-        // execute the draw command with brightness parameter
-        this.drawCommand({
-            brightness: state.params.brightness
-        });
+        this.potentialDataBuffer[backingIdx] = normalizedPotential // potential -> r
+        this.potentialDataBuffer[backingIdx + 1] = 0 // green
+        this.potentialDataBuffer[backingIdx + 2] = 0 // blue
+        this.potentialDataBuffer[backingIdx + 3] = 255 // alpha
+      }
     }
+
+    // upload texture data to GPU
+    this.psiTexture.subimage(this.textureDataBuffer)
+    this.potentialTexture.subimage(this.potentialDataBuffer)
+
+    // clear canvas and render
+    this.regl.clear({
+      color: [0, 0, 0, 1],
+      depth: 1
+    })
+
+    // execute the draw command with brightness parameter
+    this.drawCommand({
+      brightness: state.params.brightness
+    })
+  }
 }
