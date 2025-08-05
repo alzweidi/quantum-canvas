@@ -93,10 +93,9 @@ function calculateAdaptiveSlitGeometry(width, height) {
 /**
  * calculates adaptive barrier geometry for tunneling experiment
  * @param {number} width - grid width
- * @param {number} height - grid height
  * @returns {object} geometry parameters scaled to fit grid
  */
-function calculateAdaptiveBarrierGeometry(width, height) {
+function calculateAdaptiveBarrierGeometry(width) {
     const minThickness = 2;
     const baseThickness = Math.max(minThickness, Math.floor(width * 0.04)); // 4% of width, min 2
     
@@ -131,7 +130,7 @@ function validatePresetCompatibility(presetName, width, height) {
     }
     
     if (presetName === 'TUNNELING') {
-        const geom = calculateAdaptiveBarrierGeometry(width, height);
+        const geom = calculateAdaptiveBarrierGeometry(width);
         if (geom.barrierThickness < 3) {
             warnings.push('Grid size may produce thin tunneling barrier - consider larger grid');
         }
@@ -195,7 +194,7 @@ export const PRESETS = {
             validation.warnings.forEach(warning => console.warn('TUNNELING:', warning));
             
             // calculate adaptive geometry
-            const geom = calculateAdaptiveBarrierGeometry(width, height);
+            const geom = calculateAdaptiveBarrierGeometry(width);
 
             // draw barrier with bounds-safe iteration
             const xStart = geom.barrierCenterX - Math.floor(geom.barrierThickness / 2);

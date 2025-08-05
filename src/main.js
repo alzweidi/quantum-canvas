@@ -130,7 +130,7 @@ window.testComputationErrors = function(errorCount = 1) {
     let errorsInjected = 0;
     
     const originalStep = engine.step.bind(engine);
-    engine.step = function(state) {
+    engine.step = function(simulationState) {
         if (errorsInjected < errorCount) {
             errorsInjected++;
             throw new Error(`TEST: Injected computation error ${errorsInjected}/${errorCount}`);
@@ -138,7 +138,7 @@ window.testComputationErrors = function(errorCount = 1) {
             // restore original function after test
             engine.step = originalStep;
             console.log('[TEST] Computation error injection complete - restored original function');
-            return originalStep(state);
+            return originalStep(simulationState);
         }
     };
 };
@@ -152,7 +152,7 @@ window.testRenderingErrors = function(errorCount = 1) {
     let errorsInjected = 0;
     
     const originalDraw = renderer.draw.bind(renderer);
-    renderer.draw = function(state) {
+    renderer.draw = function(simulationState) {
         if (errorsInjected < errorCount) {
             errorsInjected++;
             throw new Error(`TEST: Injected rendering error ${errorsInjected}/${errorCount} - simulating WebGL failure`);
@@ -160,7 +160,7 @@ window.testRenderingErrors = function(errorCount = 1) {
             // restore original function after test
             renderer.draw = originalDraw;
             console.log('[TEST] Rendering error injection complete - restored original function');
-            return originalDraw(state);
+            return originalDraw(simulationState);
         }
     };
 };
