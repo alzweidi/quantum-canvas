@@ -5,6 +5,9 @@ import { UIController } from './UIController.js';
 import * as C from './constants.js';
 
 const canvas = document.getElementById('sim-canvas');
+if (!canvas) {
+    throw new Error('Critical error: Canvas element with id "sim-canvas" not found in DOM. Check index.html structure.');
+}
 canvas.width = C.GRID_SIZE;
 canvas.height = C.GRID_SIZE;
 
