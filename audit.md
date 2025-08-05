@@ -716,7 +716,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**11. Canvas Scaling Not Updated on DPR Changes**
+**11. Canvas Scaling Not Updated on DPR Changes** (FIXED AND COMMITTED)
 
   
 
@@ -738,7 +738,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**12. Missing DPR-Aware Canvas Sizing**
+**12. Missing DPR-Aware Canvas Sizing** 
 
   
 
