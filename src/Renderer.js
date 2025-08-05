@@ -3,44 +3,48 @@
  * visualises complex wave function data as colorful patterns
  */
 export class Renderer {
-    /**
-     * initialise the WebGL renderer with regl
-     * @param {HTMLCanvasElement} canvasElement - the canvas to render to
-     */
-    constructor(canvasElement) {
-        this.canvas = canvasElement;
-        this.regl = window.createREGL(canvasElement);
+  /**
+   * initialise the WebGL renderer with regl
+   * @param {HTMLCanvasElement} canvasElement - the canvas to render to
+   */
+  constructor (canvasElement) {
+    this.canvas = canvasElement
+    this.regl = window.createREGL(canvasElement)
 
-        // create texture for wave function data using unsigned bytes
-        this.psiTexture = this.regl.texture({
-            width: canvasElement.width,
-            height: canvasElement.height,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    // create texture for wave function data using unsigned bytes
+    this.psiTexture = this.regl.texture({
+      width: canvasElement.width,
+      height: canvasElement.height,
+      format: 'rgba',
+      type: 'uint8',
+      data: null,
+      mag: 'linear',
+      min: 'linear'
+    })
 
-        // create texture for potential barriers
-        this.potentialTexture = this.regl.texture({
-            width: canvasElement.width,
-            height: canvasElement.height,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    // create texture for potential barriers
+    this.potentialTexture = this.regl.texture({
+      width: canvasElement.width,
+      height: canvasElement.height,
+      format: 'rgba',
+      type: 'uint8',
+      data: null,
+      mag: 'linear',
+      min: 'linear'
+    })
 
-        // pre-allocate texture data buffers for performance (using bytes)
-        this.textureDataBuffer = new Uint8Array(canvasElement.width * canvasElement.height * 4);
-        this.potentialDataBuffer = new Uint8Array(canvasElement.width * canvasElement.height * 4);
+    // pre-allocate texture data buffers for performance (using bytes)
+    this.textureDataBuffer = new Uint8Array(
+      canvasElement.width * canvasElement.height * 4
+    )
+    this.potentialDataBuffer = new Uint8Array(
+      canvasElement.width * canvasElement.height * 4
+    )
 
-        // create the main rendering command - WebGL compatible version
-        this.drawCommand = this.regl({
-            // vertex shader - sets up fullscreen quad
-            vert: `
+    // create the main rendering command - WebGL compatible version
+    this.drawCommand = this.regl({
+      // vertex shader - sets up fullscreen quad
+      vert: `
                 precision mediump float;
                 attribute vec2 position;
                 varying vec2 uv;
@@ -50,8 +54,8 @@ export class Renderer {
                 }
             `,
 
-            // fragment shader - simplified quantum wave function visualization
-            frag: `
+      // fragment shader - simplified quantum wave function visualization
+      frag: `
                 precision mediump float;
                 uniform sampler2D psiTexture;
                 uniform sampler2D potentialTexture;
@@ -171,75 +175,82 @@ export class Renderer {
                 }
             `,
 
-            // attributes - fullscreen quad vertices
-            attributes: {
-                position: [
-                    [-1, -1], [1, -1], [-1, 1],
-                    [-1, 1], [1, -1], [1, 1]
-                ]
-            },
+      // attributes - fullscreen quad vertices
+      attributes: {
+        position: [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [-1, 1],
+          [1, -1],
+          [1, 1]
+        ]
+      },
 
-            // uniforms - pass wave function and potential textures
-            uniforms: {
-                psiTexture: this.psiTexture,
-                potentialTexture: this.potentialTexture,
-                u_brightness: this.regl.prop('brightness'),
-                u_textureSize: [canvasElement.width, canvasElement.height]
-            },
+      // uniforms - pass wave function and potential textures
+      uniforms: {
+        psiTexture: this.psiTexture,
+        potentialTexture: this.potentialTexture,
+        u_brightness: this.regl.prop('brightness'),
+        u_textureSize: [canvasElement.width, canvasElement.height]
+      },
 
-            // draw 6 vertices (2 triangles = fullscreen quad)
-            count: 6
-        });
+      // draw 6 vertices (2 triangles = fullscreen quad)
+      count: 6
+    })
+  }
+
+  /**
+   * render the current quantum state to the canvas
+   * @param {SimulationState} state - the simulation state to visualise
+   */
+  draw (state) {
+    // pack complex wave function data into rgba texture format
+    // convert float values to 0-255 byte range for uint8 texture
+    for (let i = 0; i < state.psi.length / 2; i++) {
+      const idx = i * 4 // rgba texture index
+      const psiIdx = i * 2 // complex array index
+
+      // convert float values to 0-255 range
+      // map from [-1, 1] to [0, 255] with offset for negative values
+      const real = state.psi[psiIdx]
+      const imag = state.psi[psiIdx + 1]
+
+      this.textureDataBuffer[idx] = Math.floor((real + 1.0) * 127.5) // Real -> R
+      this.textureDataBuffer[idx + 1] = Math.floor((imag + 1.0) * 127.5) // Imag -> G
+      this.textureDataBuffer[idx + 2] = 0 // Blue
+      this.textureDataBuffer[idx + 3] = 255 // Alpha
     }
 
-    /**
-     * render the current quantum state to the canvas
-     * @param {SimulationState} state - the simulation state to visualise
-     */
-    draw(state) {
-        // pack complex wave function data into rgba texture format
-        // convert float values to 0-255 byte range for uint8 texture
-        for (let i = 0; i < state.psi.length / 2; i++) {
-            const idx = i * 4;        // rgba texture index
-            const psiIdx = i * 2;     // complex array index
+    // pack potential barrier data into rgba texture format
+    for (let i = 0; i < state.potential.length; i++) {
+      const idx = i * 4 // rgba texture index
 
-            // convert float values to 0-255 range
-            // map from [-1, 1] to [0, 255] with offset for negative values
-            const real = state.psi[psiIdx];
-            const imag = state.psi[psiIdx + 1];
-            
-            this.textureDataBuffer[idx] = Math.floor((real + 1.0) * 127.5);     // Real -> R
-            this.textureDataBuffer[idx + 1] = Math.floor((imag + 1.0) * 127.5); // Imag -> G
-            this.textureDataBuffer[idx + 2] = 0;                                // Blue
-            this.textureDataBuffer[idx + 3] = 255;                              // Alpha
-        }
+      // normalise potential (typically 0-100) to 0-255 range
+      const normalizedPotential = Math.min(
+        255,
+        Math.floor(state.potential[i] * 2.55)
+      )
 
-        // pack potential barrier data into rgba texture format
-        for (let i = 0; i < state.potential.length; i++) {
-            const idx = i * 4;        // rgba texture index
-            
-            // normalise potential (typically 0-100) to 0-255 range
-            const normalizedPotential = Math.min(255, Math.floor(state.potential[i] * 2.55));
-            
-            this.potentialDataBuffer[idx] = normalizedPotential;     // Potential -> R
-            this.potentialDataBuffer[idx + 1] = 0;                   // Green
-            this.potentialDataBuffer[idx + 2] = 0;                   // Blue  
-            this.potentialDataBuffer[idx + 3] = 255;                 // Alpha
-        }
-
-        // upload texture data to GPU
-        this.psiTexture.subimage(this.textureDataBuffer);
-        this.potentialTexture.subimage(this.potentialDataBuffer);
-
-        // clear canvas and render
-        this.regl.clear({
-            color: [0, 0, 0, 1],
-            depth: 1
-        });
-
-        // execute the draw command with brightness parameter
-        this.drawCommand({
-            brightness: state.params.brightness
-        });
+      this.potentialDataBuffer[idx] = normalizedPotential // Potential -> R
+      this.potentialDataBuffer[idx + 1] = 0 // Green
+      this.potentialDataBuffer[idx + 2] = 0 // Blue
+      this.potentialDataBuffer[idx + 3] = 255 // Alpha
     }
+
+    // upload texture data to GPU
+    this.psiTexture.subimage(this.textureDataBuffer)
+    this.potentialTexture.subimage(this.potentialDataBuffer)
+
+    // clear canvas and render
+    this.regl.clear({
+      color: [0, 0, 0, 1],
+      depth: 1
+    })
+
+    // execute the draw command with brightness parameter
+    this.drawCommand({
+      brightness: state.params.brightness
+    })
+  }
 }
