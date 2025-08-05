@@ -56,6 +56,7 @@ export class UIController {
         this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val, 10));
         this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
         this._setupSlider('dt-slider', 'dt-value', (val) => this.state.params.dt = parseFloat(val), 3);
+        this._setupSlider('barrier-strength-slider', 'barrier-strength-value', (val) => this.state.params.barrierPhaseKick = parseFloat(val), 1);
         this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val, 10));
         this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val, 10));
         this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val, 10));
@@ -151,7 +152,7 @@ export class UIController {
     }
     
     _applyBrush(centerX, centerY, isErasing) {
-        const potentialStrength = isErasing ? 0.0 : 100.0;
+        const potentialStrength = isErasing ? 0.0 : this.state.params.barrierPhaseKick;
         const brushRadius = this.brushSize;
 
         // apply circular brush pattern
@@ -199,7 +200,8 @@ export class UIController {
         preset.draw(
             this.state.potential,
             this.state.gridSize.width,
-            this.state.gridSize.height
+            this.state.gridSize.height,
+            this.state.params.barrierPhaseKick
         );
 
         // set optimal initial parameters for the experiment
@@ -274,11 +276,13 @@ export class UIController {
         document.getElementById('brush-size-value').textContent = this.brushSize;
 
         // sync all parameters from the state.params object
-        const paramsToSync = ['brightness', 'dt', 'px', 'py', 'sigma'];
+        const paramsToSync = ['brightness', 'dt', 'barrierPhaseKick', 'px', 'py', 'sigma'];
         paramsToSync.forEach(param => {
-            const slider = document.getElementById(`${param}-slider`);
-            const valueSpan = document.getElementById(`${param}-value`);
-            const precision = (param === 'dt') ? 3 : 0;
+            const sliderId = param === 'barrierPhaseKick' ? 'barrier-strength-slider' : `${param}-slider`;
+            const valueId = param === 'barrierPhaseKick' ? 'barrier-strength-value' : `${param}-value`;
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(valueId);
+            const precision = (param === 'dt') ? 3 : (param === 'barrierPhaseKick') ? 1 : 0;
 
             if (slider && valueSpan) {
                 slider.value = this.state.params[param];

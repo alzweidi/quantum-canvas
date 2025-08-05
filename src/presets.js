@@ -6,7 +6,7 @@
 export const PRESETS = {
     DOUBLE_SLIT: {
         description: "demonstrates wave-particle duality and interference.",
-        draw: (potential, width, height) => {
+        draw: (potential, width, height, barrierPhaseKick) => {
             const barrierCenterX = Math.floor(width / 2);
             const barrierWidth = 4; // thickness of the barrier wall
             const slitHeight = 12; // height of each slit opening
@@ -25,7 +25,7 @@ export const PRESETS = {
                     // if the pixel is NOT in a slit, draw the barrier
                     if (!inSlit1 && !inSlit2) {
                         const idx = y * width + Math.floor(x);
-                        potential[idx] = 200.0; // use a high potential for a solid wall
+                        potential[idx] = barrierPhaseKick * 2.0; // strong barrier for reflection
                     }
                 }
             }
@@ -33,14 +33,14 @@ export const PRESETS = {
     },
     TUNNELING: {
         description: "shows quantum tunneling through a potential barrier.",
-        draw: (potential, width, height) => {
+        draw: (potential, width, height, barrierPhaseKick) => {
             const barrierCenterX = Math.floor(width / 2);
             const barrierThickness = 5;
 
             for (let y = 0; y < height; y++) {
                 for (let x = barrierCenterX - barrierThickness / 2; x < barrierCenterX + barrierThickness / 2; x++) {
                     const idx = y * width + Math.floor(x);
-                    potential[idx] = 100.0;
+                    potential[idx] = barrierPhaseKick; // moderate barrier for tunneling
                 }
             }
         }

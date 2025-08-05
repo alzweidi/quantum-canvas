@@ -9,6 +9,7 @@ export class SimulationState {
             sigma: C.INITIAL_SIGMA,
             dt: C.INITIAL_DT, brightness: 1.0,
             boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
+            barrierPhaseKick: 1.5, // phase per step (radians) - dt-independent barrier strength
         };
         this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);

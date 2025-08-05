@@ -72,21 +72,21 @@ export class ComputationEngine {
     
     /**
      * apply potential operator to wave function in position space
-     * multiplies by exp(-iV*dt/ℏ) for each grid point
+     * multiplies by exp(-i*phase) for each grid point where phase is stored directly
      * @param {SimulationState} state - the simulation state
-     * @param {number} dt - time step for this potential application
+     * @param {number} dt - time step for this potential application (unused for barriers)
      * @private
      */
     _applyPotential(state, dt) {
         const psi = state.psi;
         const potential = state.potential;
-        const term_factor = -dt / C.HBAR;
 
         for (let i = 0; i < potential.length; i++) {
-            // eslint-disable-next-line id-length -- V is standard physics notation for potential energy
-            const V = potential[i];
-            if (V === 0) continue;
-            const phase = V * term_factor;
+            const phaseKick = potential[i];
+            if (phaseKick === 0) continue;
+            
+            // use phase directly - no dt scaling for user-controlled barriers
+            const phase = -phaseKick;
             const cos_p = Math.cos(phase);
             const sin_p = Math.sin(phase);
 

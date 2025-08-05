@@ -572,7 +572,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**5. Kinetic Operator Storage Mismatch**
+**5. Kinetic Operator Storage Mismatch** (FIXED AND COMMITTED)
 
   
 
@@ -594,7 +594,7 @@ This prioritized list extracts all verified issues from the audit above, organiz
 
   
 
-**6. Barrier Energy Scale Not Normalized**
+**6. Barrier Energy Scale Not Normalized** (FIXED AND COMMITTED)
 
   
 
