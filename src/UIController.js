@@ -20,6 +20,14 @@ export class UIController {
             radio.addEventListener('change', (e) => this.mouseMode = e.target.value);
         });
 
+        // boundary mode radio buttons
+        document.getElementsByName('boundaryMode').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.state.params.boundaryMode = e.target.value;
+                this.state._updateBoundaries();
+            });
+        });
+
         this.canvas.addEventListener('contextmenu', e => e.preventDefault());
         this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
         this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
@@ -33,7 +41,7 @@ export class UIController {
         });
         document.getElementById('clear-button').addEventListener('click', () => {
             this.state.potential.fill(0);
-            this.state._createReflectiveBoundary();
+            this.state._updateBoundaries();
         });
 
         // preset buttons
@@ -183,9 +191,9 @@ export class UIController {
             return;
         }
 
-        // clear existing walls (preserve reflective boundaries)
+        // clear existing walls (preserve current boundary mode)
         this.state.potential.fill(0);
-        this.state._createReflectiveBoundary();
+        this.state._updateBoundaries();
 
         // apply the preset's barrier pattern
         preset.draw(
@@ -277,6 +285,12 @@ export class UIController {
                 valueSpan.textContent = parseFloat(this.state.params[param]).toFixed(precision);
             }
         });
+
+        // sync boundary mode radio buttons
+        const boundaryRadio = document.querySelector(`input[name="boundaryMode"][value="${this.state.params.boundaryMode}"]`);
+        if (boundaryRadio) {
+            boundaryRadio.checked = true;
+        }
     }
 
     updateScaling() {

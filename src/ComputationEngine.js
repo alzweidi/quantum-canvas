@@ -32,6 +32,8 @@ export class ComputationEngine {
         
         // fixed: apply absorbing boundaries to prevent wrapping
         state._applyAbsorbingBoundaries();
+// DEBUG: log boundary effects to confirm physics contradiction
+        this._logBoundaryEffects(state);
     }
     
     /**
@@ -185,6 +187,45 @@ export class ComputationEngine {
         for (let i = 0; i < this.gridSize.height; i++) {
             const col_in = this.buffer2.subarray(i * this.gridSize.width * 2, (i + 1) * this.gridSize.width * 2);
             this._ifftRow(col_in, output.subarray(i * this.gridSize.width * 2, (i + 1) * this.gridSize.width * 2));
+        }
+    }
+
+    /**
+     * DEBUG: log boundary effects to confirm physics contradiction
+     * tracks wave amplitude near boundaries to detect both reflection and absorption
+     * @param {SimulationState} state - the simulation state
+     * @private
+     */
+    _logBoundaryEffects(state) {
+        const width = state.gridSize.width;
+        const height = state.gridSize.height;
+        const boundaryRegion = 15; // check wider region than absorption boundary (10)
+        
+        let totalBoundaryAmplitude = 0;
+        let boundaryPoints = 0;
+        
+        // sample boundary region to detect amplitude changes
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                const distFromEdge = Math.min(i, j, height - 1 - i, width - 1 - j);
+                
+                if (distFromEdge < boundaryRegion) {
+                    const idx = (i * width + j) * 2;
+                    const real = state.psi[idx];
+                    const imag = state.psi[idx + 1];
+                    const amplitude = Math.sqrt(real * real + imag * imag);
+                    
+                    totalBoundaryAmplitude += amplitude;
+                    boundaryPoints++;
+                }
+            }
+        }
+        
+        const avgBoundaryAmplitude = totalBoundaryAmplitude / boundaryPoints;
+        
+        // log periodically to avoid bs spam, but capture key moments
+        if (Math.floor(performance.now() / 1000) % 2 === 0) {
+            console.log(`BOUNDARY DEBUG: Avg amplitude near edges: ${avgBoundaryAmplitude.toFixed(6)}, Points: ${boundaryPoints}`);
         }
     }
 }

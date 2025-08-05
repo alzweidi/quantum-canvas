@@ -8,26 +8,52 @@ export class SimulationState {
             px: C.INITIAL_P_X, py: C.INITIAL_P_Y,
             sigma: C.INITIAL_SIGMA,
             dt: C.INITIAL_DT, brightness: 1.0,
+            boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
         };
         this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
         this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
 
-        this._createReflectiveBoundary();
+        this._updateBoundaries();
         this._precalculateKineticOperator();
         this.resetWaveFunction();
     }
     
     _createReflectiveBoundary() {
-        const width = this.gridSize.width;
-        const height = this.gridSize.height;
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
-                    this.potential[i * width + j] = C.BORDER_STRENGTH;
+        // Only create reflective boundaries if mode allows it
+        if (this.params.boundaryMode === 'reflective' || this.params.boundaryMode === 'both') {
+            const width = this.gridSize.width;
+            const height = this.gridSize.height;
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+                        this.potential[i * width + j] = C.BORDER_STRENGTH;
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Update boundaries based on current boundary mode
+     * Clears existing boundaries and applies the appropriate type
+     * @public
+     */
+    _updateBoundaries() {
+        const width = this.gridSize.width;
+        const height = this.gridSize.height;
+        
+        // Clear all boundary potentials first
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+                    this.potential[i * width + j] = 0;
+                }
+            }
+        }
+        
+        // Apply the appropriate boundary type
+        this._createReflectiveBoundary();
     }
 
     /**
@@ -147,32 +173,35 @@ export class SimulationState {
      * @private
      */
     _applyAbsorbingBoundaries() {
-        const width = this.gridSize.width;
-        const height = this.gridSize.height;
-        const boundaryWidth = 10; // width of absorbing region
-        
-        for (let i = 0; i < height; i++) {
-            for (let j = 0; j < width; j++) {
-                const idx = (i * width + j) * 2;
-                
-                // calculate distance from edges
-                const distFromLeft = j;
-                const distFromRight = width - 1 - j;
-                const distFromTop = i;
-                const distFromBottom = height - 1 - i;
-                
-                // find minimum distance to any edge
-                const minDist = Math.min(distFromLeft, distFromRight, distFromTop, distFromBottom);
-                
-                // apply exponential decay within boundary region
-                if (minDist < boundaryWidth) {
-                    // FIXED: Scale damping by dt to ensure time-step independence
-                    // This represents a continuous absorption rate rather than discrete per-step damping
-                    const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
-                    const dampingFactor = Math.exp(-dampingRate * this.params.dt);
+        // Only apply absorbing boundaries if mode allows it
+        if (this.params.boundaryMode === 'absorbing' || this.params.boundaryMode === 'both') {
+            const width = this.gridSize.width;
+            const height = this.gridSize.height;
+            const boundaryWidth = 10; // width of absorbing region
+            
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    const idx = (i * width + j) * 2;
                     
-                    this.psi[idx] *= dampingFactor;         // real part
-                    this.psi[idx + 1] *= dampingFactor;     // imaginary part
+                    // calculate distance from edges
+                    const distFromLeft = j;
+                    const distFromRight = width - 1 - j;
+                    const distFromTop = i;
+                    const distFromBottom = height - 1 - i;
+                    
+                    // find minimum distance to any edge
+                    const minDist = Math.min(distFromLeft, distFromRight, distFromTop, distFromBottom);
+                    
+                    // apply exponential decay within boundary region
+                    if (minDist < boundaryWidth) {
+                        // FIXED: Scale damping by dt to ensure time-step independence
+                        // This represents a continuous absorption rate rather than discrete per-step damping
+                        const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
+                        const dampingFactor = Math.exp(-dampingRate * this.params.dt);
+                        
+                        this.psi[idx] *= dampingFactor;         // real part
+                        this.psi[idx + 1] *= dampingFactor;     // imaginary part
+                    }
                 }
             }
         }

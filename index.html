@@ -54,6 +54,26 @@
             </div>
         </div>
 
+        <!-- Boundary Physics -->
+        <div class="control-section">
+            <h4>Boundary Physics</h4>
+            <div class="control-group boundary-mode-group">
+                <div class="radio-group">
+                    <input type="radio" id="boundary-reflective" name="boundaryMode" value="reflective" checked>
+                    <label for="boundary-reflective">Reflective Walls</label>
+                    
+                    <input type="radio" id="boundary-absorbing" name="boundaryMode" value="absorbing">
+                    <label for="boundary-absorbing">Absorbing Boundaries</label>
+                    
+                    <input type="radio" id="boundary-both" name="boundaryMode" value="both">
+                    <label for="boundary-both">Both (Demo Conflict)</label>
+                </div>
+                <div class="mode-hint">
+                    <span>Reflective: Waves bounce back • Absorbing: Waves fade at edges</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Real-time Parameters -->
         <div class="control-section">
             <h4>Real-time Parameters</h4>
