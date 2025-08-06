@@ -57,42 +57,129 @@ let animationFrameId = null;
  * fixed: conditional RAF execution based on visibility and pause state
  */
 /**
- * handle the computation phase with error handling and degradation
+ * check if computation should be skipped due to degraded mode
  * @private
+ * @returns {boolean} true if computation should be skipped
  */
-function _handleComputationPhase() {
-    // skip computation if in degraded mode due to repeated failures
+function _shouldSkipComputation() {
     if (skipComputationFrames > 0) {
         skipComputationFrames--;
         if (skipComputationFrames === 0) {
             console.log('[RECOVERY] Attempting to resume computation after degradation period');
         }
-    } else {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * execute computation step with basic error handling
+ * @private
+ * @returns {Error|null} error if computation failed, null on success
+ */
+function _executeComputationStep() {
+    try {
+        engine.step(state);
+        consecutiveComputationErrors = 0; // reset on success
+        return null;
+    } catch (error) {
+        computationErrorCount++;
+        consecutiveComputationErrors++;
+        return error;
+    }
+}
+
+/**
+ * handle computation error logging and graceful degradation
+ * @private
+ * @param {Error} error - the computation error to handle
+ */
+function _logAndDegradeOnComputationError(error) {
+    // rate-limited logging to prevent console spam
+    const now = Date.now();
+    if (now - lastErrorLogTime > 1000) { // max 1 log per second
+        console.error(`[COMPUTATION ERROR ${computationErrorCount}] Frame ${performance.now().toFixed(1)}ms:`,
+            error.message, error.stack?.split('\n')[1] || '');
+        lastErrorLogTime = now;
+        
+        // state corruption detection
+        if (state.psi && (isNaN(state.psi[0]) || !isFinite(state.psi[0]))) {
+            console.warn('[CRITICAL] Wave function corruption detected - simulation state may be invalid');
+        }
+    }
+    
+    // graceful degradation: skip computation for 60 frames after 5 consecutive failures
+    if (consecutiveComputationErrors >= 5) {
+        skipComputationFrames = 60;
+        console.warn(`[DEGRADATION] Skipping computation for ${skipComputationFrames} frames due to repeated failures`);
+    }
+}
+
+/**
+ * handle the computation phase with error handling and degradation
+ * @private
+ */
+function _handleComputationPhase() {
+    if (_shouldSkipComputation()) return;
+    
+    const error = _executeComputationStep();
+    if (error) {
+        _logAndDegradeOnComputationError(error);
+    }
+}
+
+/**
+ * execute rendering step with basic error handling
+ * @private
+ * @returns {Error|null} error if rendering failed, null on success
+ */
+function _executeRenderingStep() {
+    try {
+        renderer.draw(state);
+        consecutiveRenderingErrors = 0; // reset on success
+        return null;
+    } catch (error) {
+        renderingErrorCount++;
+        consecutiveRenderingErrors++;
+        return error;
+    }
+}
+
+/**
+ * handle rendering error logging and WebGL context detection
+ * @private
+ * @param {Error} error - the rendering error to handle
+ */
+function _handleRenderingErrors(error) {
+    // rate-limited logging to prevent console spam
+    const now = Date.now();
+    if (now - lastErrorLogTime > 1000) { // max 1 log per second
+        console.error(`[RENDERING ERROR ${renderingErrorCount}] Frame ${performance.now().toFixed(1)}ms:`,
+            error.message, error.stack?.split('\n')[1] || '');
+        lastErrorLogTime = now;
+        
+        // WebGL context loss detection
+        if (renderer.regl && renderer.regl._gl && renderer.regl._gl.isContextLost()) {
+            console.warn('[CRITICAL] WebGL context lost - attempting recovery on next frame');
+        }
+    }
+}
+
+/**
+ * attempt WebGL context recovery after repeated failures
+ * @private
+ */
+function _recoverFromWebGLLoss() {
+    if (consecutiveRenderingErrors >= 3) {
+        console.warn('[RECOVERY] Attempting WebGL context recovery due to repeated rendering failures');
         try {
-            engine.step(state);
-            consecutiveComputationErrors = 0; // reset on success
-        } catch (error) {
-            computationErrorCount++;
-            consecutiveComputationErrors++;
-            
-            // rate-limited logging to prevent console spam
-            const now = Date.now();
-            if (now - lastErrorLogTime > 1000) { // max 1 log per second
-                console.error(`[COMPUTATION ERROR ${computationErrorCount}] Frame ${performance.now().toFixed(1)}ms:`,
-                    error.message, error.stack?.split('\n')[1] || '');
-                lastErrorLogTime = now;
-                
-                // state corruption detection
-                if (state.psi && (isNaN(state.psi[0]) || !isFinite(state.psi[0]))) {
-                    console.warn('[CRITICAL] Wave function corruption detected - simulation state may be invalid');
-                }
-            }
-            
-            // graceful degradation: skip computation for 60 frames after 5 consecutive failures
-            if (consecutiveComputationErrors >= 5) {
-                skipComputationFrames = 60;
-                console.warn(`[DEGRADATION] Skipping computation for ${skipComputationFrames} frames due to repeated failures`);
-            }
+            // attempt to reinitialise renderer resources
+            if (renderer.psiTexture) renderer.psiTexture.destroy();
+            if (renderer.potentialTexture) renderer.potentialTexture.destroy();
+            // note: full renderer reinitialisation would require canvas reference
+            consecutiveRenderingErrors = 0; // reset after recovery attempt
+        } catch (recoveryError) {
+            console.error('[RECOVERY FAILED]', recoveryError.message);
         }
     }
 }
@@ -102,39 +189,10 @@ function _handleComputationPhase() {
  * @private
  */
 function _handleRenderingPhase() {
-    try {
-        renderer.draw(state);
-        consecutiveRenderingErrors = 0; // reset on success
-    } catch (error) {
-        renderingErrorCount++;
-        consecutiveRenderingErrors++;
-        
-        // rate-limited logging to prevent console spam
-        const now = Date.now();
-        if (now - lastErrorLogTime > 1000) { // max 1 log per second
-            console.error(`[RENDERING ERROR ${renderingErrorCount}] Frame ${performance.now().toFixed(1)}ms:`,
-                error.message, error.stack?.split('\n')[1] || '');
-            lastErrorLogTime = now;
-            
-            // WebGL context loss detection
-            if (renderer.regl && renderer.regl._gl && renderer.regl._gl.isContextLost()) {
-                console.warn('[CRITICAL] WebGL context lost - attempting recovery on next frame');
-            }
-        }
-        
-        // graceful degradation: attempt WebGL recovery after 3 consecutive failures
-        if (consecutiveRenderingErrors >= 3) {
-            console.warn('[RECOVERY] Attempting WebGL context recovery due to repeated rendering failures');
-            try {
-                // attempt to reinitialise renderer resources
-                if (renderer.psiTexture) renderer.psiTexture.destroy();
-                if (renderer.potentialTexture) renderer.potentialTexture.destroy();
-                // note: full renderer reinitialisation would require canvas reference
-                consecutiveRenderingErrors = 0; // reset after recovery attempt
-            } catch (recoveryError) {
-                console.error('[RECOVERY FAILED]', recoveryError.message);
-            }
-        }
+    const error = _executeRenderingStep();
+    if (error) {
+        _handleRenderingErrors(error);
+        _recoverFromWebGLLoss();
     }
 }
 
