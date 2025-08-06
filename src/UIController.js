@@ -19,7 +19,7 @@ export class UIController {
         this._setupDPRMonitoring();
     }
 
-    _setupEventListeners() {
+    _setupMouseModeControls() {
         // mouse mode radio buttons
         const mouseModeRadios = document.getElementsByName('mouseMode');
         if (mouseModeRadios.length === 0) {
@@ -29,7 +29,9 @@ export class UIController {
                 radio.addEventListener('change', (e) => this.mouseMode = e.target.value);
             });
         }
+    }
 
+    _setupBoundaryModeControls() {
         // boundary mode radio buttons
         const boundaryModeRadios = document.getElementsByName('boundaryMode');
         if (boundaryModeRadios.length === 0) {
@@ -42,16 +44,21 @@ export class UIController {
                 });
             });
         }
-this.canvas.addEventListener('contextmenu', e => e.preventDefault());
-this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
-this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
-this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
-this.canvas.addEventListener('mouseleave', () => {
-    this.isDragging = false;
-    this.isErasing = false; // reset erase state on mouse leave
-});
-        window.addEventListener('resize', this.updateScaling.bind(this));
+    }
 
+    _setupCanvasEvents() {
+        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+        this.canvas.addEventListener('mousedown', this._handleMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this._handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseup', this._handleMouseUp.bind(this));
+        this.canvas.addEventListener('mouseleave', () => {
+            this.isDragging = false;
+            this.isErasing = false; // reset erase state on mouse leave
+        });
+        window.addEventListener('resize', this.updateScaling.bind(this));
+    }
+
+    _setupButtonControls() {
         // other controls
         const pauseButton = document.getElementById('pause-button');
         if (pauseButton) {
@@ -104,7 +111,9 @@ this.canvas.addEventListener('mouseleave', () => {
         } else {
             console.warn('Warning: Tunneling button not found in DOM');
         }
-        
+    }
+
+    _setupSliders() {
         // sliders
         this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val, 10));
         this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
@@ -113,7 +122,9 @@ this.canvas.addEventListener('mouseleave', () => {
         this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val, 10));
         this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val, 10));
         this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val, 10));
+    }
 
+    _setupInitialParamSliders() {
         // live updates for initial state sliders - triggers wave function regeneration on release
         const initialParamSliders = document.querySelectorAll('.initial-param-slider');
         if (initialParamSliders.length === 0) {
@@ -126,6 +137,15 @@ this.canvas.addEventListener('mouseleave', () => {
                 });
             });
         }
+    }
+
+    _setupEventListeners() {
+        this._setupMouseModeControls();
+        this._setupBoundaryModeControls();
+        this._setupCanvasEvents();
+        this._setupButtonControls();
+        this._setupSliders();
+        this._setupInitialParamSliders();
     }
     
     _setupSlider(sliderId, valueId, callback, precision = 0) {
@@ -149,14 +169,6 @@ this.canvas.addEventListener('mouseleave', () => {
         });
     }
 
-_getGridPos(event) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const gridX = Math.floor(x * this.scaleX);
-    const gridY = Math.floor((rect.height - y) * this.scaleY);
-    return { gridX, gridY };
-}
     _getGridPos(event) {
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
