@@ -531,7 +531,6 @@ export class UIController {
      */
     updateScaling() {
         const rect = this.canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
         
         // FIXED: Do NOT multiply rect dimensions by DPR for mouse coordinate mapping
         // rect.width/height are already in CSS pixels, which is what mouse events use
