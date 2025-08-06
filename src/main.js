@@ -56,10 +56,11 @@ let animationFrameId = null;
  * animation loop with comprehensive error handling and visibility control
  * fixed: conditional RAF execution based on visibility and pause state
  */
-function gameLoop() {
-    const frameStart = performance.now();
-    
-    // === computation phase ===
+/**
+ * handle the computation phase with error handling and degradation
+ * @private
+ */
+function _handleComputationPhase() {
     // skip computation if in degraded mode due to repeated failures
     if (skipComputationFrames > 0) {
         skipComputationFrames--;
@@ -94,8 +95,13 @@ function gameLoop() {
             }
         }
     }
-    
-    // === rendering phase ===
+}
+
+/**
+ * handle the rendering phase with error handling and recovery
+ * @private
+ */
+function _handleRenderingPhase() {
     try {
         renderer.draw(state);
         consecutiveRenderingErrors = 0; // reset on success
@@ -130,20 +136,44 @@ function gameLoop() {
             }
         }
     }
-    
-    // === performance monitoring ===
+}
+
+/**
+ * monitor frame performance and log warnings for slow frames
+ * @param {number} frameStart - The performance.now() timestamp when frame started
+ * @private
+ */
+function _monitorPerformance(frameStart) {
     const frameTime = performance.now() - frameStart;
     if (frameTime > 16.67) { // >60fps threshold
         console.warn(`[PERFORMANCE] Slow frame: ${frameTime.toFixed(2)}ms (target: <16.67ms)`);
     }
-    
-    // === controlled RAF continuation ===
+}
+
+/**
+ * schedule the next animation frame based on visibility and pause state
+ * @private
+ */
+function _scheduleNextFrame() {
     // fixed: conditional RAF based on visibility and pause state
     if (isAnimationRunning && !isPaused && isTabVisible) {
         animationFrameId = requestAnimationFrame(gameLoop);
     } else {
         animationFrameId = null;
     }
+}
+
+/**
+ * animation loop with comprehensive error handling and visibility control
+ * fixed: conditional RAF execution based on visibility and pause state
+ */
+function gameLoop() {
+    const frameStart = performance.now();
+    
+    _handleComputationPhase();
+    _handleRenderingPhase();
+    _monitorPerformance(frameStart);
+    _scheduleNextFrame();
 }
 
 /**
