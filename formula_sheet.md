@@ -135,10 +135,12 @@ $$\arg[\psi(\mathbf{r})] = \arctan\left(\frac{\text{Im}[\psi]}{\text{Re}[\psi]}\
 
 logarithmic scaling for visibility of small amplitudes:
 
-$$|\psi|_{\text{enhanced}} = \begin{cases}
+$$|\psi|_{\text{enhanced}} = \left\{
+\begin{array}{ll}
 2|\psi|^{0.5} & \text{if } |\psi| < 0.1 \\
 |\psi| & \text{otherwise}
-\end{cases}$$
+\end{array}
+\right.$$
 
 ### quantum colour mapping
 
