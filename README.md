@@ -1,168 +1,140 @@
-# Quantum Physics Simulator Codebase
+# Quantum Canvas: An Interactive 2D Quantum Physics Simulator
 
-welcome to the quantum playground! what started as a playful idea; wanting to peek at a quantum wave packet (they're notoriously shy in real life) turned into this pretty neat quantum physics simulator. I got hooked on the idea and built this out using my physics and math background. Here's the rundown of what's under the hood, structured logically and functionally.
+welcome to **Quantum Canvas**! this project leverages my custom-built physics engine and a WebGL-based rendering pipeline to bring quantum mechanics to life directly in your browser.
 
----
+## Features
+
+### Real-time Quantum Simulation
+- solves the 2D time-dependent schrödinger equation using the performant **split-step fourier method**
+
+### WebGL Rendering
+A beautiful visualisation powered by a custom GLSL shader that includes:
+
+- **perceptually uniform color mapping** based on the wave function's phase and magnitude
+- **multi-scale glow effect** to give the wave packet a realistic, field-like appearance  
+- **phase contour lines** to clearly visualise wave structure and interference patterns
+- **integrated, real-time visualisation** of user-drawn potential barriers
+
+### Interactive Physics Playground
+
+- **draw/erase potential walls**: left-click to draw potential barriers and right-click to erase them
+- **drag the wave packet**: physically move the wave packet's position in real-time
+- **nudge the wave packet**: apply a momentum "kick" by dragging and releasing, demonstrating a core quantum mechanical concept interactively
+- **classic experiment presets**: load famous quantum mechanics experiments with a single click, including the double slit experiment and quantum tunneling (Not perfect)
+- **dynamic parameter control**: fine-tune the simulation in real-time with a comprehensive UI panel to adjust everything from the time step (dt) to the initial momentum and width of the wave packet
+
+### Robust and Efficient
+
+- features a **hand-coded, in-place Fast Fourier Transform (FFT)** implementation
+- the animation loop **pauses automatically** when the tab is not visible to conserve resources
+- includes **graceful error handling and recovery** for both the computation and rendering engines
+- handles browser zoom and display resolution changes seamlessly via **Device Pixel Ratio monitoring**
 
 ## How to Run This
 
-Clone this repository to your local machine.
+1. **clone this repository** to your local machine
 
-Since this project uses ES Modules, it needs to be served by a local web server.
+2. since this project uses **ES Modules**, it must be served by a local web server
 
-- **Recommended**: Use the **Live Server extension** in Visual Studio Code:
+3. **recommended**: Use the Live Server extension in Visual Studio Code
+   - right-click on [`index.html`](index.html) and select "Open with Live Server"
 
-  - Right-click on `index.html` and select **"Open with Live Server"**.
-
-- **Alternative**: Run a simple Python server:
+4. **alternative**: Run a simple Python server from the project's root directory:
 
 ```bash
 python -m http.server
 ```
 
----
+then navigate to `http://localhost:8000` in your browser.
 
-## High-Level Architecture
+## Architecture
 
-The simulator follows a clear, modular structure divided into key logical components:
+the simulator follows a clear, modular structure that separates concerns into distinct components:
 
-- **Quantum Simulation Core**
+- **[`main.js`](src/main.js)** *(Application Core)*: initialises all modules, runs the primary animation loop, and manages application-level state like pause/play and visibility
 
-  - `SimulationState.js`
-  - `ComputationEngine.js`
+- **[`SimulationState.js`](src/SimulationState.js)** *(Physics State)*: manages the simulation's state, including the wave function (ψ), potential fields, boundary conditions, and all physical parameters
 
-- **Mathematical Operations**
+- **[`ComputationEngine.js`](src/ComputationEngine.js)** *(Physics Engine)*: executes the time evolution of the wave function using the split-step fourier method
 
-  - `fft.js` *(My pride and joy a completely self-coded FFT implementation)*
-  - `constants.js`
+- **[`fft.js`](src/fft.js)** *(Mathematical Operations)*: a self-coded, in-place fast fourier transform and its inverse
 
-- **Visualisation & Rendering**
+- **[`constants.js`](src/constants.js)**: stores fundamental constants and initial simulation parameters
 
-  - `Renderer.js`
+- **[`Renderer.js`](src/Renderer.js)** *(visualisation)*: handles all WebGL rendering via regl, including the advanced shaders that visualise the quantum state
 
-- **User Interface & Interaction** *(I'll admit it upfront: my web UI skills are... suboptimal. contributions here are more than welcome)*
+- **[`UIController.js`](src/UIController.js)** *(user interaction)*: manages all user input from the UI panel and the canvas, translating it into changes in the simulation state
 
-  - `UIController.js`
-  - `presets.js`
-  - `index.html`
-  - `style.css`
+- **[`presets.js`](src/presets.js)**: defines the configurations for the included quantum experiments
 
+- **[`index.html`](index.html) & [`style.css`](src/style.css)**: the application's structure and styling, featuring a modern, responsive UI panel
 
+## Technical
 
----
+### The Physics Engine
 
-## Quantum Simulation Core
+[`SimulationState.js`](src/SimulationState.js) is the data-heart of the simulation. it initialises the system with a **Gaussian wave packet**, a common and physically meaningful initial state, defined by the equation:
 
-### SimulationState.js
+$$\psi(x,y) = A e^{-\frac{(x-x_0)^2 + (y-y_0)^2}{2\sigma^2}} e^{\frac{i}{\hbar}(p_x x + p_y y)}$$
 
-handles the quantum wave function (ψ), potential fields, and kinetic energy operators. Initialises everything precisely to simulate quantum behavior accurately.
+it also manages boundary conditions, which can be **reflective** (high-potential walls) or **absorbing** (a damping field at the edges to simulate infinite space).
 
-#### Mathematical Details
+[`ComputationEngine.js`](src/ComputationEngine.js) evolves the wave function in time using the **split-step fourier method**. this numerical method is highly efficient and stable for solving the time-dependent schrödinger equation. it works by splitting the evolution operator into a potential energy step (in position space) and a kinetic energy step (in momentum space). the evolution for a single time step $\Delta t$ is approximated as:
 
-Initial Gaussian wave packet equation:
+$$\psi(t+\Delta t) \approx e^{-i\frac{V\Delta t}{2\hbar}} \cdot e^{-i\frac{T\Delta t}{\hbar}} \cdot e^{-i\frac{V\Delta t}{2\hbar}} \psi(t)$$
 
-$$\psi(x, y) = A e^{-\frac{(x - x_0)^2 + (y - y_0)^2}{2\sigma^2}} e^{i\frac{p_x x + p_y y}{\hbar}}$$
+this symmetric splitting (also known as a **strang splitting**) makes the method accurate to the second order in $\Delta t$.
 
-- `_createReflectiveBoundary()` sets the boundary conditions.
-- `_precalculateKineticOperator()` precomputes the kinetic operator:
+### visualisation and rendering
 
-$$T = \frac{\hbar^2 k^2}{2m}$$
-
-- `resetWaveFunction()` initialises the Gaussian packet.
-
-**Why Float32Array?** Chosen for optimal memory efficiency and high-performance compatibility with WebGL.
-
----
-
-### ComputationEngine.js
-
-Uses the Split-Step Fourier Method for quantum evolution:
-
-$$\psi(t+\Delta t) = e^{-iV\frac{\Delta t}{2\hbar}} e^{-iT\frac{\Delta t}{\hbar}} e^{-iV\frac{\Delta t}{2\hbar}} \psi(t)$$
-
-Key methods:
-
-- `_applyPotential()` applies potential in position space.
-- `_applyKinetic()` applies kinetic energy operator via FFT transformations.
-
-**Why Split-Step Method?** It's stable and efficient for quantum simulations as it handles position and momentum evolutions separately.
-
----
-
-## Mathematical Operations
-
-### fft.js 
-
-FFT: $$X_k = \sum_{n=0}^{N-1} x_n e^{-i \frac{2\pi}{N}kn}$$
-
-Inverse FFT: $$x_n = \frac{1}{N}\sum_{k=0}^{N-1} X_k e^{i \frac{2\pi}{N}kn}$$
-
-Implemented in-place to ensure maximum efficiency and avoid memory overhead.
-
-### constants.js
-
-Stores key constants:
-
-```javascript
-export const GRID_SIZE = 256;
-export const HBAR = 1;
-export const MASS = 1;
-export const INITIAL_DT = 0.005;
-```
-
----
-
-## Visualization & Rendering
-
-### Renderer.js
-
-Visualises quantum wave functions using WebGL (`regl`).
-
-Shader snippet:
+[`Renderer.js`](src/Renderer.js) uses **regl**, a functional WebGL library, to render the quantum state. the visualisation is not just a simple plot; it's a shader pipeline designed to be both beautiful and physically informative. the core of this is the fragment shader, which executes the following steps for every pixel:
 
 ```glsl
-float magnitude = length(psi);
-float phase = atan(psi.y, psi.x);
-float hue = (phase / (2.0 * 3.14159)) + 0.5;
-vec3 waveColor = hsl2rgb(vec3(hue, 1.0, smoothstep(0.0, 0.4, magnitude) * u_brightness));
+// GLSL (Simplified for clarity)
+void main() {
+    // 1. read and decode the complex wave function from a texture
+    vec2 psi = (texture2D(psiTexture, uv).rg * 2.0) - 1.0;
+    float magnitude = length(psi);
+    float phase = atan(psi.y, psi.x);
+
+    // 2. read potential barrier data from another texture
+    float potential = texture2D(potentialTexture, uv).r * 100.0;
+
+    // 3. enhance small magnitudes to make faint parts of the wave more visible
+    float enhancedMagnitude = enhanceMagnitude(magnitude);
+
+    // 4. apply the visualisation pipeline
+    vec3 baseColor = quantumColorMapping(enhancedMagnitude, phase); // map phase/mag to HSL color
+    vec3 glowColor = applyGlow(baseColor, enhancedMagnitude, uv);   // add a soft glow
+    vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude); // draw phase lines
+
+    // 5. filter out low-magnitude noise and apply user-controlled brightness
+    vec3 quantumColor = (magnitude < 0.01) ? vec3(0.0) : contourColor * u_brightness;
+
+    // 6. overlay the potential barriers in a distinct color
+    vec3 finalColor = applyPotentialBarriers(quantumColor, potential);
+    gl_FragColor = vec4(finalColor, 1.0);
+}
 ```
 
-Visual and interactive examples available in the **examples/** folder with videos and screenshots showcasing the simulator's beauty.
+### user interaction
 
----
+[`UIController.js`](src/UIController.js) is the bridge between the user and the simulation. a particularly interesting feature is the **"nudge" mode**. when you drag and release the mouse, it applies a momentum kick to the wave packet. this is achieved by multiplying the wave function by a complex phase factor, which is the quantum mechanical operator for a momentum translation:
 
-## User Interface & Interaction
-
-### UIController.js
-
-Handles interactions like drawing barriers and nudging wave packets:
-
-**"Nudge" Feature Physics:** Applying phase $e^{i(\Delta p \cdot r)/\hbar}$ gives the quantum wave packet a momentum kick, demonstrating a quantum mechanical concept interactively.
-
-### presets.js
-
-Features classic quantum setups:
-
-- Double Slit Experiment
-- Quantum Tunneling
-
----
+$$\psi_{\text{new}}(\mathbf{r}) = \psi_{\text{old}}(\mathbf{r}) \cdot e^{i(\Delta\mathbf{p} \cdot \mathbf{r})/\hbar}$$
 
 ## How to Contribute
 
-Contributions are very welcome Areas of particular interest:
+contributions are very welcome! any help to make it better is greatly appreciated. areas of particular interest are:
 
-- **UI/UX Improvements:** Enhance layout, styling (`style.css`), or interaction (`UIController.js`).
-- **New Presets:** Add more quantum experiments (e.g., Quantum Harmonic Oscillator, Aharonov–Bohm effect).
-- **Optimizations:** Improve rendering logic (`Renderer.js`) or FFT performance (`ComputationEngine.js`).
-- **Bug Reports & Ideas:** Found a bug or have an idea? Open an issue!
+- **UI/UX improvements**: enhancements to the layout, styling ([`style.css`](src/style.css)), or interaction flow ([`UIController.js`](src/UIController.js)) would be fantastic since i suck at UI/UX design lol
 
----
+- **new presets**: add more classic quantum experiments (e.g., quantum harmonic oscillator, Aharonov–Bohm effect)
 
-## Future Plans & Improvements
+- **optimisations**: can you make it even faster? improvements to the rendering logic ([`Renderer.js`](src/Renderer.js)) or physics computations ([`ComputationEngine.js`](src/ComputationEngine.js)) are always welcome
 
-*(I'm currently working on figuring out ways to improve graphics performance)*
+- **bug reports & ideas**: found a bug or have a cool idea for a new feature? please open an issue!
 
 ---
 
-Enjoy playing around! Contributions, especially UI improvements lol, are very welcome
+*Built with determination by Abedalaziz Alzweidi*
