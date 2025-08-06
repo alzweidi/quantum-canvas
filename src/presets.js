@@ -142,7 +142,7 @@ function validatePresetCompatibility(presetName, width, height) {
 export const PRESETS = {
     DOUBLE_SLIT: {
         description: "demonstrates wave-particle duality and interference.",
-        draw: (potential, width, height, barrierPhaseKick) => {
+        draw: (potential, width, height, barrierEnergy) => {
             // validate compatibility first
             const validation = validatePresetCompatibility('DOUBLE_SLIT', width, height);
             if (!validation.compatible) {
@@ -174,7 +174,7 @@ export const PRESETS = {
 
                     // if the pixel is NOT in a slit, draw the barrier with bounds checking
                     if (!inSlit1 && !inSlit2) {
-                        safeSetPotential(potential, x, y, width, height, barrierPhaseKick * 2.0);
+                        safeSetPotential(potential, x, y, width, height, barrierEnergy * 2.0);
                     }
                 }
             }
@@ -182,7 +182,7 @@ export const PRESETS = {
     },
     TUNNELING: {
         description: "shows quantum tunneling through a potential barrier.",
-        draw: (potential, width, height, barrierPhaseKick) => {
+        draw: (potential, width, height, barrierEnergy) => {
             // validate compatibility first
             const validation = validatePresetCompatibility('TUNNELING', width, height);
             if (!validation.compatible) {
@@ -202,7 +202,7 @@ export const PRESETS = {
             
             for (let y = 0; y < height; y++) {
                 for (let x = xStart; x < xEnd; x++) {
-                    safeSetPotential(potential, x, y, width, height, barrierPhaseKick);
+                    safeSetPotential(potential, x, y, width, height, barrierEnergy);
                 }
             }
         }

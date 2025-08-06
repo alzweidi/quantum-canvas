@@ -68,11 +68,11 @@ $$\psi'(\mathbf{r}) = \psi(\mathbf{r}) \cdot e^{-i \phi(\mathbf{r})}$$
 
 **user-drawn barriers:**
 
-$$\phi(\mathbf{r}) = \text{barrierPhaseKick} = 1.5 \text{ rad}$$
+$$\phi(\mathbf{r}) = \frac{V \Delta t}{2\hbar} \text{ where } V = \text{barrierEnergy}$$
 
 **reflective boundary walls:**
 
-$$\phi_{\text{boundary}} = 10^6 \cdot \Delta t / \hbar$$
+$$\phi_{\text{boundary}} = \frac{V \Delta t}{2\hbar} \text{ where } V = \text{WALL_ENERGY}$$
 
 ---
 

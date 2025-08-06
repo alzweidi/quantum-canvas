@@ -118,7 +118,7 @@ export class UIController {
         this._setupSlider('brush-slider', 'brush-size-value', (val) => this.brushSize = parseInt(val, 10));
         this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
         this._setupSlider('dt-slider', 'dt-value', (val) => this.state.params.dt = parseFloat(val), 3);
-        this._setupSlider('barrier-strength-slider', 'barrier-strength-value', (val) => this.state.params.barrierPhaseKick = parseFloat(val), 1);
+        this._setupSlider('barrier-strength-slider', 'barrier-strength-value', (val) => this.state.params.barrierEnergy = parseFloat(val), 1);
         this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val, 10));
         this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val, 10));
         this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val, 10));
@@ -266,7 +266,7 @@ export class UIController {
     }
     
     _applyBrush(centerX, centerY, isErasing) {
-        const potentialStrength = isErasing ? 0.0 : this.state.params.barrierPhaseKick;
+        const potentialStrength = isErasing ? 0.0 : this.state.params.barrierEnergy;
         const brushRadius = this.brushSize;
 
         // apply circular brush pattern
@@ -315,7 +315,7 @@ export class UIController {
             this.state.potential,
             this.state.gridSize.width,
             this.state.gridSize.height,
-            this.state.params.barrierPhaseKick
+            this.state.params.barrierEnergy
         );
 
         // set optimal initial parameters for the experiment with grid-relative positioning
@@ -411,13 +411,13 @@ export class UIController {
         }
 
         // sync all parameters from the state.params object
-        const paramsToSync = ['brightness', 'dt', 'barrierPhaseKick', 'px', 'py', 'sigma'];
+        const paramsToSync = ['brightness', 'dt', 'barrierEnergy', 'px', 'py', 'sigma'];
         paramsToSync.forEach(param => {
-            const sliderId = param === 'barrierPhaseKick' ? 'barrier-strength-slider' : `${param}-slider`;
-            const valueId = param === 'barrierPhaseKick' ? 'barrier-strength-value' : `${param}-value`;
+            const sliderId = param === 'barrierEnergy' ? 'barrier-strength-slider' : `${param}-slider`;
+            const valueId = param === 'barrierEnergy' ? 'barrier-strength-value' : `${param}-value`;
             const slider = document.getElementById(sliderId);
             const valueSpan = document.getElementById(valueId);
-            const precision = (param === 'dt') ? 3 : (param === 'barrierPhaseKick') ? 1 : 0;
+            const precision = (param === 'dt') ? 3 : (param === 'barrierEnergy') ? 1 : 0;
 
             if (slider && valueSpan) {
                 slider.value = this.state.params[param];

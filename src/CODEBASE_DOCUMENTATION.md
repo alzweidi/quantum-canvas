@@ -141,7 +141,7 @@ this.params = {
     sigma: C.INITIAL_SIGMA,
     dt: C.INITIAL_DT, brightness: 1.0,
     boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
-    barrierPhaseKick: 1.5, // phase per step (radians) - dt-independent barrier strength
+    barrierEnergy: 300, // energy unit - now stored as energy rather than phase
 };
 ```
 

@@ -9,4 +9,4 @@ export const INITIAL_P_Y = 0.0;
 export const INITIAL_X0 = DOMAIN_SIZE / 2; // center in physical coordinates
 export const INITIAL_Y0 = DOMAIN_SIZE / 2;
 export const POTENTIAL_STRENGTH = 100.0;
-export const BORDER_STRENGTH = 1e6;
+export const WALL_ENERGY = 1e4;  // big, but finite, energy unit

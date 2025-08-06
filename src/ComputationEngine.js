@@ -72,20 +72,22 @@ export class ComputationEngine {
     
     /**
      * apply potential operator to wave function in position space
-     * multiplies by exp(-i*phase) for each grid point where phase is stored directly
+     * applies exp(-i*V*dt/(2*ℏ)) for each grid point using true potential energy V
+     * implements half-step potential kick for Strang splitting
      * @param {SimulationState} state - the simulation state
      * @private
      */
     _applyPotential(state) {
         const psi = state.psi;
         const potential = state.potential;
+        const dt = state.params.dt;
 
         for (let i = 0; i < potential.length; i++) {
-            const phaseKick = potential[i];
-            if (phaseKick === 0) continue;
+            const V = potential[i]; // V is the true potential energy
+            if (V === 0) continue;
             
-            // use phase directly - no dt scaling for user-controlled barriers
-            const phase = -phaseKick;
+            // calculate phase for half-step: φ = -V * dt / (2 * ℏ)
+            const phase = -V * dt / (2 * C.HBAR);
             const cos_p = Math.cos(phase);
             const sin_p = Math.sin(phase);
 
@@ -230,7 +232,7 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
         }
         
         // step 2: transpose to prepare for row IFFTs
-        this._transpose(this.buffer1, this.buffer2, this.gridSize.height, this.gridSize.width);
+        this._transpose(this.buffer1, this.buffer2, this.gridSize.width, this.gridSize.height);
         
         // step 3: row IFFTs (height rows, each of width elements)
         for (let i = 0; i < this.gridSize.height; i++) {
