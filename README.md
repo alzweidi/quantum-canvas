@@ -1,6 +1,10 @@
 # Quantum Canvas: An Interactive 2D Quantum Physics Simulator
 
-welcome to **Quantum Canvas**! this project leverages my custom-built physics engine and a WebGL-based rendering pipeline to bring quantum mechanics to life directly in your browser.
+
+
+**science is the grammar of nature; art is the accent we choose.** the constants and equations would be discovered by someone, sooner or later; beethoven’s ninth would not. quantum canvas lives in that seam; taking the schrödinger equation off the chalkboard and onto a stage of light, where interference writes and phase becomes color. what begins as numerics resolves into an experience: repeatable like an experiment, singular like a performance.
+
+
 
 ## Features
 
