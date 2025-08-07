@@ -142,3 +142,15 @@ contributions are very welcome! any help to make it better is greatly appreciate
 ---
 
 *Built with determination by Abedalaziz Alzweidi*
+
+
+## Genesis Art Pieces
+
+<div align="center">
+
+|  |  |  |
+|---|---|---|
+| <img src="cool-captures/art1.png" alt="Genesis I" width="280"/> | <img src="cool-captures/art3.png" alt="Genesis II" width="280"/> | <img src="cool-captures/art4.png" alt="Genesis III" width="280"/> |
+| <sub>Genesis I</sub> | <sub>Genesis II</sub> | <sub>Genesis III</sub> |
+
+</div>
