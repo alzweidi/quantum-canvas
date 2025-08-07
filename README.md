@@ -146,11 +146,13 @@ contributions are very welcome! any help to make it better is greatly appreciate
 
 ## Genesis Art Pieces
 
-<div align="center">
-
-|  |  |  |
-|---|---|---|
-| <img src="cool-captures/art1.png" alt="Genesis I" width="280"/> | <img src="cool-captures/art3.png" alt="Genesis II" width="280"/> | <img src="cool-captures/art4.png" alt="Genesis III" width="280"/> |
-| <sub>Genesis I</sub> | <sub>Genesis II</sub> | <sub>Genesis III</sub> |
-
-</div>
+<p align="center">
+  <img src="cool-captures/art1.png" alt="Genesis I" width="260" />
+  <img src="cool-captures/art3.png" alt="Genesis II" width="260" />
+  <img src="cool-captures/art4.png" alt="Genesis III" width="260" />
+</p>
+<p align="center">
+  <sub>Genesis I</sub>&nbsp;&nbsp;&nbsp;
+  <sub>Genesis II</sub>&nbsp;&nbsp;&nbsp;
+  <sub>Genesis III</sub>
+</p>
