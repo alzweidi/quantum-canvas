@@ -56,17 +56,12 @@ export class ComputationEngine {
      * @param {SimulationState} state - the simulation state to advance
      */
     step(state) {
-        this._applyPotential(state);
+        this._applyPotential(state);          // V/2
+        this._applyKinetic(state);            // T
+        this._applyPotential(state);          // V/2
         
-        // fixed a BUG: applied absorbing boundaries BEFORE kinetic evolution
-        // which prevents wrap artifacts during FFT-based kinetic step in k-space
-        // thank you to the dream i had last night
-        state._applyAbsorbingBoundaries();
-        
-        this._applyKinetic(state);
-        this._applyPotential(state);
-        
-        // keep post-step absorption for additional safety
+        // apply absorbing boundaries only after complete strang splitting
+        // to preserve time-reversibility and second-order accuracy
         state._applyAbsorbingBoundaries();
     }
     

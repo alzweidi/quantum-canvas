@@ -178,7 +178,8 @@ export class SimulationState {
         if (this.params.boundaryMode === 'absorbing' || this.params.boundaryMode === 'both') {
             const width = this.gridSize.width;
             const height = this.gridSize.height;
-            const boundaryWidth = 10; // width of absorbing region
+            // make boundary width resolution-independent: 5% of domain, minimum 4 cells
+            const boundaryWidth = Math.max(4, Math.floor(0.05 * width));
             
             for (let i = 0; i < height; i++) {
                 for (let j = 0; j < width; j++) {
@@ -197,7 +198,9 @@ export class SimulationState {
                     if (minDist < boundaryWidth) {
                         // fixed scale damping by dt to ensure time-step independence
                         // this represents a continuous absorption rate rather than discrete per-step damping
-                        const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
+                        // convert damping rate to physical units for resolution independence
+                        const cellSize = C.DOMAIN_SIZE / width;
+                        const dampingRate = 0.06 * (boundaryWidth - minDist) * cellSize; // physical units
                         const dampingFactor = Math.exp(-dampingRate * this.params.dt);
                         
                         this.psi[idx] *= dampingFactor;         // real part
