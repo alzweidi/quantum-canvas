@@ -218,9 +218,13 @@ export class UIController {
             const dx = gridX - this.startDragPos.x;
             const dy = gridY - this.startDragPos.y;
             
-            // calculate momentum nudge from drag vector
-            const nudgePx = dx * 2.0; // scaling factor for good feel
-            const nudgePy = dy * 2.0;
+            // add unit conversion for physical momentum consistency
+            const cellDx = C.DOMAIN_SIZE / this.state.gridSize.width;
+            const cellDy = C.DOMAIN_SIZE / this.state.gridSize.height;
+            
+            // convert drag (cells) to physical momenta
+            const nudgePx = (dx * 2.0) / cellDx;   // physical momentum
+            const nudgePy = (dy * 2.0) / cellDy;   // physical momentum
             
             // apply quantum phase multiplication for real momentum kick
             this._applyMomentumKick(nudgePx, nudgePy);
@@ -368,6 +372,11 @@ export class UIController {
         const width = this.state.gridSize.width;
         const height = this.state.gridSize.height;
         const hbar = C.HBAR;
+        
+        // FIX: calculate grid spacing to convert indices to physical coordinates
+        // this ensures consistency with wave function initialisation coordinate system
+        const dx = C.DOMAIN_SIZE / width;
+        const dy = C.DOMAIN_SIZE / height;
 
         // apply phase multiplication: ψ' = ψ * exp(i(Δp·r)/ℏ)
         for (let y = 0; y < height; y++) {
@@ -376,8 +385,9 @@ export class UIController {
                 const real = this.state.psi[idx];
                 const imag = this.state.psi[idx + 1];
                 
-                // calculate phase: (Δpx*x + Δpy*y)/ℏ
-                const phase = (deltaPx * x + deltaPy * y) / hbar;
+                // FIX: convert grid indices to physical coordinates for correct momentum kick
+                // calculate phase: (Δpx*x_physical + Δpy*y_physical)/ℏ
+                const phase = (deltaPx * x * dx + deltaPy * y * dy) / hbar;
                 const cosPhase = Math.cos(phase);
                 const sinPhase = Math.sin(phase);
                 
