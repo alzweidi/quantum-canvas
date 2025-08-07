@@ -2,8 +2,8 @@
  * simple, bulletproof FFT implementation
  * uses the most straightforward approach to avoid any subtle bugs
  * performs an in-place Fast Fourier Transform on separate real and imaginary arrays
- * @param {Float32Array} real - array of real components (modified in-place)
- * @param {Float32Array} imag - array of imaginary components (modified in-place)
+ * @param {Float64Array} real - array of real components (modified in-place)
+ * @param {Float64Array} imag - array of imaginary components (modified in-place)
  */
 export function fft(real, imag) {
     const n = real.length;
@@ -59,8 +59,8 @@ export function fft(real, imag) {
 /**
  * inverse Fast Fourier Transform implementation
  * performs an in-place inverse FFT using the conjugate method with proper normalization
- * @param {Float32Array} real - array of real components (modified in-place)
- * @param {Float32Array} imag - array of imaginary components (modified in-place)
+ * @param {Float64Array} real - array of real components (modified in-place)
+ * @param {Float64Array} imag - array of imaginary components (modified in-place)
  */
 export function ifft(real, imag) {
     const n = real.length;

@@ -15,14 +15,14 @@ export class ComputationEngine {
         this._validateGridDimensions(gridSize);
         
         this.gridSize = gridSize;
-        this.buffer1 = new Float32Array(gridSize.width * gridSize.height * 2);
-        this.buffer2 = new Float32Array(gridSize.width * gridSize.height * 2);
+        this.buffer1 = new Float64Array(gridSize.width * gridSize.height * 2);
+        this.buffer2 = new Float64Array(gridSize.width * gridSize.height * 2);
 
         // fix: buffers for data format conversion must handle both row and column processing
         // need max(width, height) to handle both row FFTs (width) and column FFTs (height)
         const maxDimension = Math.max(this.gridSize.width, this.gridSize.height);
-        this.real = new Float32Array(maxDimension);
-        this.imag = new Float32Array(maxDimension);
+        this.real = new Float64Array(maxDimension);
+        this.imag = new Float64Array(maxDimension);
     }
     
     /**
@@ -129,8 +129,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
 
     /**
      * transpose a 2D complex array for efficient FFT computation
-     * @param {Float32Array} source - source array to transpose
-     * @param {Float32Array} destination - destination array for result
+     * @param {Float64Array} source - source array to transpose
+     * @param {Float64Array} destination - destination array for result
      * @param {number} width - width of the 2D array
      * @param {number} height - height of the 2D array
      * @private
@@ -148,8 +148,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
 
     /**
      * perform FFT on a single row of interleaved complex data
-     * @param {Float32Array} input - interleaved complex input array
-     * @param {Float32Array} output - interleaved complex output array
+     * @param {Float64Array} input - interleaved complex input array
+     * @param {Float64Array} output - interleaved complex output array
      * @private
      */
     _fftRow(input, output) {
@@ -167,8 +167,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
 
     /**
      * perform inverse FFT on a single row of interleaved complex data
-     * @param {Float32Array} input - interleaved complex input array
-     * @param {Float32Array} output - interleaved complex output array
+     * @param {Float64Array} input - interleaved complex input array
+     * @param {Float64Array} output - interleaved complex output array
      * @private
      */
     _ifftRow(input, output) {
@@ -186,8 +186,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
     
     /**
      * perform 2D FFT using symmetric row-column decomposition
-     * @param {Float32Array} input - input 2D array as interleaved complex
-     * @param {Float32Array} output - output 2D array as interleaved complex
+     * @param {Float64Array} input - input 2D array as interleaved complex
+     * @param {Float64Array} output - output 2D array as interleaved complex
      * @private
      */
     _fft2D(input, output) {
@@ -214,8 +214,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
 
     /**
      * perform 2D inverse FFT using symmetric row-column decomposition
-     * @param {Float32Array} input - input 2D array as interleaved complex
-     * @param {Float32Array} output - output 2D array as interleaved complex
+     * @param {Float64Array} input - input 2D array as interleaved complex
+     * @param {Float64Array} output - output 2D array as interleaved complex
      * @private
      */
     _ifft2D(input, output) {
@@ -246,7 +246,7 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
         console.log(`\n=== ROUND-TRIP TEST: ${width}x${height} ===`);
         
         // create test grid with impulse at center
-        const testGrid = new Float32Array(width * height * 2);
+        const testGrid = new Float64Array(width * height * 2);
         const centerX = Math.floor(width / 2);
         const centerY = Math.floor(height / 2);
         const centerIdx = (centerY * width + centerX) * 2;
@@ -260,8 +260,8 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
         
         // create temporary grid with the new dimensions
         const tempEngine = new ComputationEngine({ width, height });
-        const buffer1 = new Float32Array(width * height * 2);
-        const buffer2 = new Float32Array(width * height * 2);
+        const buffer1 = new Float64Array(width * height * 2);
+        const buffer2 = new Float64Array(width * height * 2);
         
         // perform round-trip: FFT -> IFFT
         tempEngine._fft2D(testGrid, buffer1);

@@ -11,9 +11,9 @@ export class SimulationState {
             boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
             barrierEnergy: 300, // energy unit - now stored as energy rather than phase
         };
-        this.psi = new Float32Array(this.gridSize.width * this.gridSize.height * 2);
-        this.potential = new Float32Array(this.gridSize.width * this.gridSize.height);
-        this.kineticOperatorK = new Float32Array(this.gridSize.width * this.gridSize.height);
+        this.psi = new Float64Array(this.gridSize.width * this.gridSize.height * 2);
+        this.potential = new Float64Array(this.gridSize.width * this.gridSize.height);
+        this.kineticOperatorK = new Float64Array(this.gridSize.width * this.gridSize.height);
 
         this._updateBoundaries();
         this._precalculateKineticOperator();
@@ -148,7 +148,7 @@ export class SimulationState {
     }
 
     shiftWaveFunction(dx, dy) {
-        const tempPsi = new Float32Array(this.psi.length).fill(0);
+        const tempPsi = new Float64Array(this.psi.length).fill(0);
         const width = this.gridSize.width;
         const height = this.gridSize.height;
 

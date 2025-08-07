@@ -33,7 +33,7 @@ function clampToGrid(x, y, width, height) {
 
 /**
  * safely sets potential value with bounds checking
- * @param {Float32Array} potential - potential array
+ * @param {Float64Array} potential - potential array
  * @param {number} x - x coordinate
  * @param {number} y - y coordinate
  * @param {number} width - grid width
