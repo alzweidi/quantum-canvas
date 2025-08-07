@@ -15,6 +15,13 @@ export class Renderer {
         this.backingStoreWidth = canvasElement.width;
         this.backingStoreHeight = canvasElement.height;
         
+        // diagnostic tracking for amplitude scaling
+        this.scalingDiagnostics = {
+            frameCount: 0,
+            lastWarningFrame: -1,
+            warningThreshold: 60 // warn once per second at 60fps
+        };
+        
         console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
 
         // create texture for wave function data using unsigned bytes
@@ -223,6 +230,11 @@ export class Renderer {
         const scaleX = this.backingStoreWidth / simGridSize;
         const scaleY = this.backingStoreHeight / simGridSize;
         
+        // diagnostic tracking for amplitude scaling warnings
+        this.scalingDiagnostics.frameCount++;
+        let scaledPixelCount = 0;
+        let maxAmplitudeFound = 0;
+        
         // pack complex wave function data into rgba texture format with DPR scaling
         // convert float values to 0-255 byte range for uint8 texture
         for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
@@ -233,16 +245,43 @@ export class Renderer {
                 const simIdx = (simY * simGridSize + simX) * 2; // complex array index
                 const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
                 
-                // convert float values to 0-255 range
-                // map from [-1, 1] to [0, 255] with offset for negative values
+                // convert float values to 0-255 range with adaptive scaling
                 const real = state.psi[simIdx];
                 const imag = state.psi[simIdx + 1];
                 
-                this.textureDataBuffer[backingIdx] = Math.floor((real + 1.0) * 127.5);     // real -> r
-                this.textureDataBuffer[backingIdx + 1] = Math.floor((imag + 1.0) * 127.5); // imag -> g
+                // per-pixel adaptive scaling to prevent silent clipping of |ψ| > 1 components
+                const maxComponent = Math.max(Math.abs(real), Math.abs(imag));
+                const scale = maxComponent > 1.0 ? 1.0 / maxComponent : 1.0;
+                
+                // track scaling diagnostics
+                if (scale < 1.0) {
+                    scaledPixelCount++;
+                    maxAmplitudeFound = Math.max(maxAmplitudeFound, maxComponent);
+                }
+                
+                // apply scaling while preserving phase information
+                const scaledReal = real * scale;
+                const scaledImag = imag * scale;
+                
+                // map from [-1, 1] to [0, 255] with offset for negative values
+                this.textureDataBuffer[backingIdx] = Math.floor((scaledReal + 1.0) * 127.5);     // real -> r
+                this.textureDataBuffer[backingIdx + 1] = Math.floor((scaledImag + 1.0) * 127.5); // imag -> g
                 this.textureDataBuffer[backingIdx + 2] = 0;                                // blue
                 this.textureDataBuffer[backingIdx + 3] = 255;                              // alpha
             }
+        }
+        
+        // emit diagnostic warning if significant scaling occurred
+        const totalPixels = this.backingStoreWidth * this.backingStoreHeight;
+        const scalingPercentage = (scaledPixelCount / totalPixels) * 100;
+        
+        if (scaledPixelCount > 0 &&
+            this.scalingDiagnostics.frameCount - this.scalingDiagnostics.lastWarningFrame >= this.scalingDiagnostics.warningThreshold) {
+            console.warn(`[QUANTUM AMPLITUDE SCALING] Frame ${this.scalingDiagnostics.frameCount}: ` +
+                        `${scaledPixelCount} pixels (${scalingPercentage.toFixed(2)}%) required amplitude scaling. ` +
+                        `Max component found: ${maxAmplitudeFound.toFixed(4)} (exceeds [-1,1] texture range). ` +
+                        `Phase information preserved via adaptive scaling.`);
+            this.scalingDiagnostics.lastWarningFrame = this.scalingDiagnostics.frameCount;
         }
 
         // pack potential barrier data into rgba texture format with DPR scaling
