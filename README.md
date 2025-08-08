@@ -142,8 +142,11 @@ contributions are very welcome! any help to make it better is greatly appreciate
 ---
 
 *Built with determination by Abedalaziz Alzweidi*
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 627ce3e (docs: add genesis art gallery showcase to README with sample captures)
 ## Genesis Art Pieces
 
 <p align="center">
@@ -155,4 +158,8 @@ contributions are very welcome! any help to make it better is greatly appreciate
   <sub>Genesis I</sub>&nbsp;&nbsp;&nbsp;
   <sub>Genesis II</sub>&nbsp;&nbsp;&nbsp;
   <sub>Genesis III</sub>
+<<<<<<< HEAD
 </p>
+=======
+</p>
+>>>>>>> 627ce3e (docs: add genesis art gallery showcase to README with sample captures)
