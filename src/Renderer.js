@@ -229,10 +229,11 @@ export class Renderer {
      * @param {SimulationState} state - the simulation state to visualise
      */
     draw(state) {
-        // simulation grid size (always 256x256)
-        const simGridSize = Math.sqrt(state.psi.length / 2); // complex numbers = length/2
-        const scaleX = this.backingStoreWidth / simGridSize;
-        const scaleY = this.backingStoreHeight / simGridSize;
+        // simulation grid size (rect-safe)
+        const simW = state.gridSize.width;
+        const simH = state.gridSize.height;
+        const scaleX = this.backingStoreWidth  / simW;
+        const scaleY = this.backingStoreHeight / simH;
         
         // diagnostic tracking for amplitude scaling warnings
         this.scalingDiagnostics.frameCount++;
@@ -244,9 +245,12 @@ export class Renderer {
         for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
             for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
                 // map backing store coordinates to simulation grid coordinates
-                const simX = Math.floor(backingX / scaleX);
-                const simY = Math.floor(backingY / scaleY);
-                const simIdx = (simY * simGridSize + simX) * 2; // complex array index
+                let simX = Math.floor(backingX / scaleX);
+                let simY = Math.floor(backingY / scaleY);
+                // clamp to last valid cell to avoid OOB on the right/bottom edge
+                if (simX >= simW) simX = simW - 1;
+                if (simY >= simH) simY = simH - 1;
+                const simIdx = (simY * simW + simX) * 2; // interleaved complex index
                 const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
                 
                 // convert float values to 0-255 range with adaptive scaling
@@ -296,15 +300,18 @@ export class Renderer {
         for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
             for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
                 // map backing store coordinates to simulation grid coordinates
-                const simX = Math.floor(backingX / scaleX);
-                const simY = Math.floor(backingY / scaleY);
-                const simIdx = simY * simGridSize + simX;
+                let simX = Math.floor(backingX / scaleX);
+                let simY = Math.floor(backingY / scaleY);
+                // clamp to last valid cell to avoid OOB on the right/bottom edge
+                if (simX >= simW) simX = simW - 1;
+                if (simY >= simH) simY = simH - 1;
+                const simIdxScalar = (simY * simW + simX);
                 const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
                 
                 // normalise potential using dynamic scaling based on potentialMax
                 const normalizedPotential = Math.max(
                     0,
-                    Math.min(255, Math.floor(state.potential[simIdx] * potentialToByte))
+                    Math.min(255, Math.floor(state.potential[simIdxScalar] * potentialToByte))
                 );
                 
                 this.potentialDataBuffer[backingIdx] = normalizedPotential;     // potential -> r
@@ -326,11 +333,9 @@ export class Renderer {
 // execute the draw command with brightness parameter and current texture size
         this.drawCommand({
             brightness: state.params.brightness,
-            potentialMax: potentialMax,
             textureSize: [this.backingStoreWidth, this.backingStoreHeight],
-            magCutoff: (state.visual && typeof state.visual.magCutoff === 'number' && state.visual.magCutoff >= 0.0)
-                ? state.visual.magCutoff
-                : 0.01
+            potentialMax: (state.params.barrierEnergy > 0 ? state.params.barrierEnergy : 300.0),
+            magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.01)
         });
     }
 }
