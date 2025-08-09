@@ -70,6 +70,7 @@ export class Renderer {
                 uniform sampler2D potentialTexture;
                 uniform float u_brightness;
                 uniform float u_potentialMax;
+                uniform float u_magCutoff;
                 uniform vec2 u_textureSize;
                 varying vec2 uv;
 
@@ -184,9 +185,9 @@ export class Renderer {
                     // Apply phase contours
                     vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
                     
-                    // Filter out quantization noise: anything below 0.01 is background
+                    // Filter out quantization noise: anything below u_magCutoff is background
                     vec3 quantumColor;
-                    if (magnitude < 0.01) {
+                    if (magnitude < u_magCutoff) {
                         // background stays pure black
                         quantumColor = vec3(0.0);
                     } else {
@@ -214,6 +215,7 @@ export class Renderer {
                 potentialTexture: this.potentialTexture,
                 u_brightness: this.regl.prop('brightness'),
                 u_potentialMax: this.regl.prop('potentialMax'),
+                u_magCutoff: this.regl.prop('magCutoff'),
                 u_textureSize: this.regl.prop('textureSize')
             },
 
@@ -325,7 +327,10 @@ export class Renderer {
         this.drawCommand({
             brightness: state.params.brightness,
             potentialMax: potentialMax,
-            textureSize: [this.backingStoreWidth, this.backingStoreHeight]
+            textureSize: [this.backingStoreWidth, this.backingStoreHeight],
+            magCutoff: (state.visual && typeof state.visual.magCutoff === 'number' && state.visual.magCutoff >= 0.0)
+                ? state.visual.magCutoff
+                : 0.01
         });
     }
 }
