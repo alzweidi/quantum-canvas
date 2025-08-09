@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFT Verification Test</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Consolas', monospace;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-output {
+            background-color: #2d2d2d;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .test-button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background-color: #1177bb;
+        }
+        .pass { color: #4ec9b0; }
+        .fail { color: #f44747; }
+        .warning { color: #ffcc02; }
+        .header { 
+            color: #569cd6; 
+            font-size: 16px; 
+            font-weight: bold; 
+            margin: 20px 0 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>FFT Implementation Verification</h1>
+        <p>Phase 4: Verify FFT round-trip accuracy and canonical layout consistency</p>
+        
+        <div>
+            <button class="test-button" onclick="runVerificationTests()">Run FFT Verification Tests</button>
+            <button class="test-button" onclick="runBasicRoundTripTests()">Run Basic Round-Trip Tests</button>
+            <button class="test-button" onclick="clearOutput()">Clear Output</button>
+        </div>
+        
+        <div class="header">Test Output:</div>
+        <div id="output" class="test-output">Click "Run FFT Verification Tests" to begin comprehensive testing...</div>
+    </div>
+
+    <script type="module">
+        import { ComputationEngine } from './src/ComputationEngine.js';
+
+        // capture console output
+        let outputBuffer = [];
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const message = args.join(' ');
+            outputBuffer.push(message);
+            originalLog.apply(console, args);
+            updateOutput();
+        };
+
+        function updateOutput() {
+            const outputDiv = document.getElementById('output');
+            let html = outputBuffer.join('\n');
+            
+            // colorize the output
+            html = html.replace(/PASSED/g, '<span class="pass">PASSED</span>');
+            html = html.replace(/FAILED/g, '<span class="fail">FAILED</span>');
+            html = html.replace(/FAIL/g, '<span class="fail">FAIL</span>');
+            html = html.replace(/PASS/g, '<span class="pass">PASS</span>');
+            html = html.replace(/CORRECT/g, '<span class="pass">CORRECT</span>');
+            html = html.replace(/INCORRECT/g, '<span class="fail">INCORRECT</span>');
+            html = html.replace(/CONSISTENT/g, '<span class="pass">CONSISTENT</span>');
+            html = html.replace(/INCONSISTENT/g, '<span class="fail">INCONSISTENT</span>');
+            html = html.replace(/ALL TESTS PASSED/g, '<span class="pass">ALL TESTS PASSED</span>');
+            html = html.replace(/SOME TESTS FAILED/g, '<span class="fail">SOME TESTS FAILED</span>');
+            html = html.replace(/WARNING/g, '<span class="warning">WARNING</span>');
+            html = html.replace(/=== (.+?) ===/g, '<span class="header">=== $1 ===</span>');
+            
+            outputDiv.innerHTML = html;
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        window.runVerificationTests = function() {
+            outputBuffer = [];
+            console.log('Starting comprehensive FFT verification...\n');
+            
+            try {
+                // create test engine for verification
+                const testEngine = new ComputationEngine({ width: 256, height: 256 });
+                
+                // run comprehensive verification
+                const results = testEngine.verifyFFTImplementation([
+                    { width: 256, height: 256 },    // square grid
+                    { width: 512, height: 256 },    // rectangular 2:1  
+                    { width: 256, height: 512 },    // rectangular 1:2
+                    { width: 128, height: 64 },     // rectangular 2:1 smaller
+                    { width: 64, height: 128 },     // rectangular 1:2 smaller
+                    { width: 32, height: 32 },      // small square
+                    { width: 16, height: 8 }        // very small rectangular
+                ]);
+                
+                console.log('\n=== DETAILED RESULTS ANALYSIS ===');
+                
+                // analyze results in detail
+                if (results.allTestsPassed) {
+                    console.log('\n🎉 SUCCESS: All verification tests passed!');
+                    console.log('✓ FFT transpose asymmetry has been completely resolved');
+                    console.log('✓ Both forward and inverse FFTs use canonical layouts');
+                    console.log('✓ Kinetic operator multiply is formally correct');
+                    console.log('✓ Round-trip accuracy maintained for all grid sizes');
+                } else {
+                    console.log('\nFAILURE: Some tests failed - see details above');
+                    
+                    // analyze failures
+                    const failedRoundTrip = results.roundTripTests.filter(t => !t.passed);
+                    const failedLayout = results.canonicalLayoutTests.filter(t => !t.passed);
+                    const failedKinetic = results.kineticOperatorTests.filter(t => !t.passed);
+                    
+                    if (failedRoundTrip.length > 0) {
+                        console.log(`Round-trip failures: ${failedRoundTrip.length}`);
+                        failedRoundTrip.forEach(f => {
+                            console.log(`  ${f.config.width}x${f.config.height}: error ${f.maxError.toExponential(3)}`);
+                        });
+                    }
+                    
+                    if (failedLayout.length > 0) {
+                        console.log(`Layout failures: ${failedLayout.length}`);
+                        failedLayout.forEach(f => {
+                            console.log(`  ${f.config.width}x${f.config.height}: see details above`);
+                        });
+                    }
+                    
+                    if (failedKinetic.length > 0) {
+                        console.log(`Kinetic operator failures: ${failedKinetic.length}`);
+                        failedKinetic.forEach(f => {
+                            console.log(`  ${f.config.width}x${f.config.height}: error ${f.details.maxKineticError.toExponential(3)}`);
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.log(`ERROR: ${error.message}`);
+                console.log(`Stack: ${error.stack}`);
+            }
+        };
+
+        window.runBasicRoundTripTests = function() {
+            outputBuffer = [];
+            console.log('Running basic round-trip tests...\n');
+            
+            try {
+                const testEngine = new ComputationEngine({ width: 256, height: 256 });
+                
+                // test the existing method
+                console.log('=== BASIC ROUND-TRIP TESTS ===');
+                const configs = [
+                    { width: 256, height: 256 },
+                    { width: 512, height: 256 },
+                    { width: 128, height: 64 }
+                ];
+                
+                let allPassed = true;
+                for (const config of configs) {
+                    const passed = testEngine.testRoundTripAccuracy(config.width, config.height);
+                    if (!passed) allPassed = false;
+                }
+                
+                console.log(`\n=== SUMMARY ===`);
+                console.log(`Overall result: ${allPassed ? 'ALL PASSED' : 'SOME FAILED'}`);
+                
+            } catch (error) {
+                console.log(`ERROR: ${error.message}`);
+            }
+        };
+
+        window.clearOutput = function() {
+            outputBuffer = [];
+            document.getElementById('output').innerHTML = 'Output cleared. Run tests to see results...';
+        };
+    </script>
+</body>
+</html>
