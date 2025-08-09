@@ -6,6 +6,9 @@
  * @param {Float64Array} imag - array of imaginary components (modified in-place)
  */
 export function fft(real, imag) {
+    if (imag.length !== real.length) {
+        throw new Error(`FFT: real/imag length mismatch (real=${real.length}, imag=${imag.length})`);
+    }
     const n = real.length;
     if (n <= 1) return;
 
@@ -63,7 +66,11 @@ export function fft(real, imag) {
  * @param {Float64Array} imag - array of imaginary components (modified in-place)
  */
 export function ifft(real, imag) {
+    if (imag.length !== real.length) {
+        throw new Error(`IFFT: real/imag length mismatch (real=${real.length}, imag=${imag.length})`);
+    }
     const n = real.length;
+    if (n <= 1) return;
     
     // validate that input size is a power of 2
     if (!Number.isInteger(Math.log2(n))) {
