@@ -4,7 +4,7 @@ export const HBAR = 1;
 export const MASS = 1;
 export const INITIAL_DT = 0.005;
 export const INITIAL_SIGMA = 15.0;
-export const INITIAL_P_X = 61.0;
+export const INITIAL_P_X = 1.0; // below Nyquist for Δx=2 → k_max≈1.57
 export const INITIAL_P_Y = 0.0;
 export const INITIAL_X0 = DOMAIN_SIZE / 2; // center in physical coordinates
 export const INITIAL_Y0 = DOMAIN_SIZE / 2;

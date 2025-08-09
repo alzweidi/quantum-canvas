@@ -233,6 +233,9 @@ export class UIController {
             this.state.params.px += nudgePx;
             this.state.params.py += nudgePy;
             
+            // clamp momentum to Nyquist limits to prevent aliasing
+            this.state._clampMomentumToNyquist();
+            
             // clamp momentum values to slider ranges
             this.state.params.px = Math.max(-150, Math.min(150, this.state.params.px));
             this.state.params.py = Math.max(-150, Math.min(150, this.state.params.py));
@@ -326,17 +329,20 @@ export class UIController {
         const width = this.state.gridSize.width;
         const height = this.state.gridSize.height;
         
+        // calculate Nyquist-safe momentum values to prevent aliasing
+        const dx = C.DOMAIN_SIZE / width;
+        const kMax = Math.PI / dx;           // Nyquist wavenumber
+        const pxSafe = 0.6 * kMax * C.HBAR;  // 60% of Nyquist for headroom
+        this.state.params.px = (presetName === 'TUNNELING') ? pxSafe : 0.4 * kMax * C.HBAR;
+        this.state.params.py = 0;
+        
         if (presetName === 'DOUBLE_SLIT') {
             // optimal parameters for wave interference demonstration
-            this.state.params.px = Math.max(20, Math.floor(width * 0.15)); // ~15% of grid width, min 20
-            this.state.params.py = 0;
             this.state.params.sigma = Math.max(8, Math.floor(width * 0.04)); // ~4% of grid width, min 8
             this.state.params.x0 = Math.floor(width * 0.125); // 1/8 from left edge
             this.state.params.y0 = Math.floor(height * 0.5); // vertically centered
         } else if (presetName === 'TUNNELING') {
             // optimal parameters for tunneling demonstration
-            this.state.params.px = Math.max(40, Math.floor(width * 0.3)); // ~30% of grid width, min 40
-            this.state.params.py = 0;
             this.state.params.sigma = Math.max(10, Math.floor(width * 0.06)); // ~6% of grid width, min 10
             this.state.params.x0 = Math.floor(width * 0.25); // 1/4 from left edge
             this.state.params.y0 = Math.floor(height * 0.5); // vertically centered

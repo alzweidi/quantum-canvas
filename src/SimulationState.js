@@ -87,6 +87,50 @@ export class SimulationState {
             }
         }
     }
+/**
+     * get physical grid spacing in x direction
+     * @private
+     */
+    _getDx() { return C.DOMAIN_SIZE / this.gridSize.width; }
+    
+    /**
+     * get physical grid spacing in y direction 
+     * @private
+     */
+    _getDy() { return C.DOMAIN_SIZE / this.gridSize.height; }
+    
+    /**
+     * get maximum safe momentum in x direction (Nyquist limit)
+     * @private
+     */
+    _getPxMax() { return Math.PI / this._getDx() * C.HBAR; } // Nyquist px
+    
+    /**
+     * get maximum safe momentum in y direction (Nyquist limit)
+     * @private
+     */
+    _getPyMax() { return Math.PI / this._getDy() * C.HBAR; } // Nyquist py
+
+    /**
+     * clamp momentum parameters to stay within Nyquist sampling limits
+     * prevents aliasing artifacts from high momentum values
+     * @param {number} margin - safety margin factor (default 0.9 for 90% of Nyquist)
+     * @private
+     */
+    _clampMomentumToNyquist(margin = 0.9) {
+        const pxMax = this._getPxMax() * margin;
+        const pyMax = this._getPyMax() * margin;
+        const oldPx = this.params.px, oldPy = this.params.py;
+
+        if (Math.abs(this.params.px) > pxMax) {
+            this.params.px = Math.sign(this.params.px) * pxMax;
+            console.warn(`[NYQUIST] Clamped px from ${oldPx} to ${this.params.px}`);
+        }
+        if (Math.abs(this.params.py) > pyMax) {
+            this.params.py = Math.sign(this.params.py) * pyMax;
+            console.warn(`[NYQUIST] Clamped py from ${oldPy} to ${this.params.py}`);
+        }
+    }
 
     /**
      * initialises the wave function as a normalised Gaussian wave packet
@@ -94,6 +138,7 @@ export class SimulationState {
      * @private
      */
     resetWaveFunction() {
+        this._clampMomentumToNyquist();
         const size = this.gridSize.width;
         // FIX: calculate grid spacing from physical domain size and resolution
         const dx = C.DOMAIN_SIZE / this.gridSize.width;
