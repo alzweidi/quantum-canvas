@@ -85,6 +85,43 @@ export class SimulationState {
             }
         }
     }
+
+    /**
+     * static helper: closed-form wrapping with proper negative handling
+     * @param {number} i - coordinate to wrap
+     * @param {number} n - grid dimension size
+     * @returns {number} wrapped coordinate in [0, n-1]
+     * @private
+     */
+    static _wrap(i, n) {
+        return ((i % n) + n) % n;
+    }
+
+    /**
+     * static helper: closed-form reflection with period 2*(n-1), no loops
+     * @param {number} i - coordinate to reflect
+     * @param {number} n - grid dimension size
+     * @returns {number} reflected coordinate in [0, n-1]
+     * @private
+     */
+    static _reflect(i, n) {
+        if (n <= 1) return 0;
+        const period = 2 * (n - 1);
+        const wrapped = ((i % period) + period) % period;
+        return wrapped >= n ? period - wrapped : wrapped;
+    }
+
+    /**
+     * static helper: boundary checking that returns -1 for out-of-bounds
+     * @param {number} i - coordinate to check
+     * @param {number} n - grid dimension size
+     * @returns {number} i if in bounds [0, n-1], else -1
+     * @private
+     */
+    static _mapDrop(i, n) {
+        return (i >= 0 && i < n) ? i : -1;
+    }
+
 /**
      * get physical grid spacing in x direction
      * @private
@@ -200,81 +237,71 @@ export class SimulationState {
         const { mode = 'wrap', renormalize = true } = opts;
         const width = this.gridSize.width;
         const height = this.gridSize.height;
-        const tempPsi = new Float64Array(this.psi.length);
         
-        // handle boundary modes
-        if (mode === 'wrap') {
-            // wrap around edges - preserve all samples
+        // no-op wrap guard: skip when shift is multiple of grid dimensions
+        if (mode === 'wrap' && dx % width === 0 && dy % height === 0) {
+            return;
+        }
+        
+        // drop mode specialization: avoids function calls and -1 checks
+        if (mode === 'drop') {
+            const tempPsi = new Float64Array(this.psi.length);
+            
             for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    // wrap coordinates using modulo
-                    let newX = (x + dx) % width;
-                    let newY = (y + dy) % height;
-                    if (newX < 0) newX += width;
-                    if (newY < 0) newY += height;
-                    
-                    const oldIdx = (y * width + x) * 2;
-                    const newIdx = (newY * width + newX) * 2;
-                    tempPsi[newIdx] = this.psi[oldIdx];
-                    tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
-                }
-            }
-        } else if (mode === 'reflect') {
-            // reflect at boundaries - preserve all samples
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    let newX = x + dx;
-                    let newY = y + dy;
-                    
-                    // reflect at x boundaries
-                    if (newX < 0) {
-                        newX = -newX - 1;
-                    } else if (newX >= width) {
-                        newX = 2 * width - newX - 1;
-                    }
-                    
-                    // reflect at y boundaries
-                    if (newY < 0) {
-                        newY = -newY - 1;
-                    } else if (newY >= height) {
-                        newY = 2 * height - newY - 1;
-                    }
-                    
-                    // handle multiple reflections for large shifts
-                    while (newX < 0 || newX >= width || newY < 0 || newY >= height) {
-                        if (newX < 0) newX = -newX - 1;
-                        if (newX >= width) newX = 2 * width - newX - 1;
-                        if (newY < 0) newY = -newY - 1;
-                        if (newY >= height) newY = 2 * height - newY - 1;
-                    }
-                    
-                    const oldIdx = (y * width + x) * 2;
-                    const newIdx = (newY * width + newX) * 2;
-                    tempPsi[newIdx] = this.psi[oldIdx];
-                    tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
-                }
-            }
-        } else if (mode === 'drop') {
-            // drop out-of-bounds samples (legacy behavior)
-            tempPsi.fill(0);
-            for (let y = 0; y < height; y++) {
+                const newY = y + dy;
+                if (newY < 0 || newY >= height) continue; // direct boundary check
+                
                 for (let x = 0; x < width; x++) {
                     const newX = x + dx;
-                    const newY = y + dy;
-                    if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
-                        const oldIdx = (y * width + x) * 2;
-                        const newIdx = (newY * width + newX) * 2;
-                        tempPsi[newIdx] = this.psi[oldIdx];
-                        tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
-                    }
+                    if (newX < 0 || newX >= width) continue; // direct boundary check
+                    
+                    const oldIdx = (y * width + x) * 2;
+                    const newIdx = (newY * width + newX) * 2;
+                    tempPsi[newIdx] = this.psi[oldIdx];
+                    tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
                 }
             }
+            
+            // apply the shift
+            this.psi = tempPsi;
+            
+            // renormalise using same metric as resetWaveFunction
+            if (renormalize) {
+                this._renormalizeWaveFunction();
+            }
+            return;
+        }
+        
+        // choose mapping strategy once based on mode (eliminates branching inside loops)
+        let mapX, mapY;
+        if (mode === 'wrap') {
+            mapX = (x) => SimulationState._wrap(x + dx, width);
+            mapY = (y) => SimulationState._wrap(y + dy, height);
+        } else if (mode === 'reflect') {
+            mapX = (x) => SimulationState._reflect(x + dx, width);
+            mapY = (y) => SimulationState._reflect(y + dy, height);
         } else {
             throw new Error(`Unknown boundary mode: ${mode}. Use 'wrap', 'reflect', or 'drop'.`);
         }
         
+        const tempPsi = new Float64Array(this.psi.length);
+        
+        // single nested loop that copies data using chosen mappers
+        for (let y = 0; y < height; y++) {
+            const newY = mapY(y);
+            
+            for (let x = 0; x < width; x++) {
+                const newX = mapX(x);
+                
+                const oldIdx = (y * width + x) * 2;
+                const newIdx = (newY * width + newX) * 2;
+                tempPsi[newIdx] = this.psi[oldIdx];
+                tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+            }
+        }
+        
         // apply the shift
-        this.psi.set(tempPsi);
+        this.psi = tempPsi;
         
         // renormalise using same metric as resetWaveFunction
         if (renormalize) {
