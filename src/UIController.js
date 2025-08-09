@@ -1,6 +1,9 @@
 import { PRESETS } from './presets.js';
 import * as C from './constants.js';
 
+// DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
+const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+
 export class UIController {
     constructor(canvas, state) {
         this.canvas = canvas;
@@ -23,7 +26,9 @@ export class UIController {
         // mouse mode radio buttons
         const mouseModeRadios = document.getElementsByName('mouseMode');
         if (mouseModeRadios.length === 0) {
-            console.warn('Warning: No mouse mode radio buttons found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: No mouse mode radio buttons found in DOM');
+            }
         } else {
             mouseModeRadios.forEach(radio => {
                 radio.addEventListener('change', (e) => this.mouseMode = e.target.value);
@@ -35,7 +40,9 @@ export class UIController {
         // boundary mode radio buttons
         const boundaryModeRadios = document.getElementsByName('boundaryMode');
         if (boundaryModeRadios.length === 0) {
-            console.warn('Warning: No boundary mode radio buttons found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: No boundary mode radio buttons found in DOM');
+            }
         } else {
             boundaryModeRadios.forEach(radio => {
                 radio.addEventListener('change', (e) => {
@@ -71,7 +78,9 @@ export class UIController {
                 }
             });
         } else {
-            console.warn('Warning: Pause button not found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: Pause button not found in DOM');
+            }
         }
 
         const resetButton = document.getElementById('reset-button');
@@ -80,7 +89,9 @@ export class UIController {
                 this.state.resetWaveFunction();
             });
         } else {
-            console.warn('Warning: Reset button not found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: Reset button not found in DOM');
+            }
         }
 
         const clearButton = document.getElementById('clear-button');
@@ -90,7 +101,9 @@ export class UIController {
                 this.state._updateBoundaries();
             });
         } else {
-            console.warn('Warning: Clear button not found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: Clear button not found in DOM');
+            }
         }
 
         // preset buttons
@@ -100,7 +113,9 @@ export class UIController {
                 this._applyPreset('DOUBLE_SLIT');
             });
         } else {
-            console.warn('Warning: Double slit button not found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: Double slit button not found in DOM');
+            }
         }
 
         const tunnelingButton = document.getElementById('tunneling-button');
@@ -109,7 +124,9 @@ export class UIController {
                 this._applyPreset('TUNNELING');
             });
         } else {
-            console.warn('Warning: Tunneling button not found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: Tunneling button not found in DOM');
+            }
         }
     }
 
@@ -128,7 +145,9 @@ export class UIController {
         // live updates for initial state sliders - triggers wave function regeneration on release
         const initialParamSliders = document.querySelectorAll('.initial-param-slider');
         if (initialParamSliders.length === 0) {
-            console.warn('Warning: No initial parameter sliders found in DOM');
+            if (DEBUG) {
+                console.warn('Warning: No initial parameter sliders found in DOM');
+            }
         } else {
             initialParamSliders.forEach(slider => {
                 slider.addEventListener('change', () => {
@@ -153,12 +172,16 @@ export class UIController {
         const valueSpan = document.getElementById(valueId);
         
         if (!slider) {
-            console.warn(`Warning: Slider element with id "${sliderId}" not found in DOM`);
+            if (DEBUG) {
+                console.warn(`Warning: Slider element with id "${sliderId}" not found in DOM`);
+            }
             return;
         }
         
         if (!valueSpan) {
-            console.warn(`Warning: Value span element with id "${valueId}" not found in DOM`);
+            if (DEBUG) {
+                console.warn(`Warning: Value span element with id "${valueId}" not found in DOM`);
+            }
             return;
         }
         
@@ -249,25 +272,33 @@ export class UIController {
             if (pxSlider) {
                 pxSlider.value = this.state.params.px;
             } else {
-                console.warn('Warning: px-slider element not found for momentum update');
+                if (DEBUG) {
+                    console.warn('Warning: px-slider element not found for momentum update');
+                }
             }
             
             if (pySlider) {
                 pySlider.value = this.state.params.py;
             } else {
-                console.warn('Warning: py-slider element not found for momentum update');
+                if (DEBUG) {
+                    console.warn('Warning: py-slider element not found for momentum update');
+                }
             }
             
             if (pxValue) {
                 pxValue.textContent = this.state.params.px;
             } else {
-                console.warn('Warning: px-value element not found for momentum update');
+                if (DEBUG) {
+                    console.warn('Warning: px-value element not found for momentum update');
+                }
             }
             
             if (pyValue) {
                 pyValue.textContent = this.state.params.py;
             } else {
-                console.warn('Warning: py-value element not found for momentum update');
+                if (DEBUG) {
+                    console.warn('Warning: py-value element not found for momentum update');
+                }
             }
         }
     }
@@ -417,13 +448,17 @@ export class UIController {
         if (brushSlider) {
             brushSlider.value = this.brushSize;
         } else {
-            console.warn('Warning: brush-slider element not found during UI sync');
+            if (DEBUG) {
+                console.warn('Warning: brush-slider element not found during UI sync');
+            }
         }
         
         if (brushValue) {
             brushValue.textContent = this.brushSize;
         } else {
-            console.warn('Warning: brush-size-value element not found during UI sync');
+            if (DEBUG) {
+                console.warn('Warning: brush-size-value element not found during UI sync');
+            }
         }
 
         // sync all parameters from the state.params object
@@ -439,8 +474,10 @@ export class UIController {
                 slider.value = this.state.params[param];
                 valueSpan.textContent = parseFloat(this.state.params[param]).toFixed(precision);
             } else {
-                if (!slider) console.warn(`Warning: ${sliderId} element not found during UI sync`);
-                if (!valueSpan) console.warn(`Warning: ${valueId} element not found during UI sync`);
+                if (DEBUG) {
+                    if (!slider) console.warn(`Warning: ${sliderId} element not found during UI sync`);
+                    if (!valueSpan) console.warn(`Warning: ${valueId} element not found during UI sync`);
+                }
             }
         });
 
@@ -449,7 +486,9 @@ export class UIController {
         if (boundaryRadio) {
             boundaryRadio.checked = true;
         } else {
-            console.warn(`Warning: boundary mode radio button with value "${this.state.params.boundaryMode}" not found during UI sync`);
+            if (DEBUG) {
+                console.warn(`Warning: boundary mode radio button with value "${this.state.params.boundaryMode}" not found during UI sync`);
+            }
         }
     }
 

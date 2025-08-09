@@ -1,3 +1,6 @@
+// DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
+const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+
 /**
  * renderer class - renders the quantum wave function to WebGL canvas
  * visualises complex wave function data as colorful patterns
@@ -22,7 +25,9 @@ export class Renderer {
             warningThreshold: 60 // warn once per second at 60fps
         };
         
-        console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
+        if (DEBUG) {
+            console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
+        }
 
         // create texture for wave function data using unsigned bytes
         this.psiTexture = this.regl.texture({
@@ -148,20 +153,6 @@ export class Renderer {
                     }
                 }
 
-// DEBUG: log magnitude distribution for brightness investigation
-                void debugMagnitudeLogging() {
-                    if (uv.x < 0.01 && uv.y < 0.01) {
-                        // sample top-left corner pixel for debugging
-                        vec2 texel = texture2D(psiTexture, uv).rg;
-                        vec2 psi = (texel * 2.0) - 1.0;
-                        float mag = length(psi);
-                        
-                        // this will show in browser console if magnitude is problematic
-                        if (mag > 1e-3 && mag < 0.01) {
-                            // these are the problematic magnitudes that should be background
-                        }
-                    }
-                }
                 void main() {
                     // Read and convert complex wave function
                     vec2 texel = texture2D(psiTexture, uv).rg;
@@ -283,7 +274,7 @@ export class Renderer {
         const totalPixels = this.backingStoreWidth * this.backingStoreHeight;
         const scalingPercentage = (scaledPixelCount / totalPixels) * 100;
         
-        if (scaledPixelCount > 0 &&
+        if (DEBUG && scaledPixelCount > 0 &&
             this.scalingDiagnostics.frameCount - this.scalingDiagnostics.lastWarningFrame >= this.scalingDiagnostics.warningThreshold) {
             console.warn(`[QUANTUM AMPLITUDE SCALING] Frame ${this.scalingDiagnostics.frameCount}: ` +
                         `${scaledPixelCount} pixels (${scalingPercentage.toFixed(2)}%) required amplitude scaling. ` +

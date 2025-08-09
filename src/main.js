@@ -4,6 +4,9 @@ import { Renderer } from './Renderer.js';
 import { UIController } from './UIController.js';
 import * as C from './constants.js';
 
+// DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
+const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+
 const canvas = document.getElementById('sim-canvas');
 if (!canvas) {
     throw new Error('Critical error: Canvas element with id "sim-canvas" not found in DOM. Check index.html structure.');
@@ -17,7 +20,9 @@ const backingStoreHeight = Math.ceil(C.GRID_SIZE * devicePixelRatio);
 canvas.width = backingStoreWidth;
 canvas.height = backingStoreHeight;
 
-console.log(`[DPR FIX] Canvas sizing - DPR: ${devicePixelRatio}, CSS: ${C.GRID_SIZE}x${C.GRID_SIZE}, Backing store: ${backingStoreWidth}x${backingStoreHeight}`);
+if (DEBUG) {
+    console.log(`[DPR FIX] Canvas sizing - DPR: ${devicePixelRatio}, CSS: ${C.GRID_SIZE}x${C.GRID_SIZE}, Backing store: ${backingStoreWidth}x${backingStoreHeight}`);
+}
 
 // validate against WebGL texture limits
 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -65,7 +70,9 @@ function _shouldSkipComputation() {
     if (skipComputationFrames > 0) {
         skipComputationFrames--;
         if (skipComputationFrames === 0) {
-            console.log('[RECOVERY] Attempting to resume computation after degradation period');
+            if (DEBUG) {
+                console.log('[RECOVERY] Attempting to resume computation after degradation period');
+            }
         }
         return true;
     }
@@ -203,7 +210,7 @@ function _handleRenderingPhase() {
  */
 function _monitorPerformance(frameStart) {
     const frameTime = performance.now() - frameStart;
-    if (frameTime > 16.67) { // >60fps threshold
+    if (DEBUG && frameTime > 16.67) { // >60fps threshold
         console.warn(`[PERFORMANCE] Slow frame: ${frameTime.toFixed(2)}ms (target: <16.67ms)`);
     }
 }
@@ -240,7 +247,9 @@ function gameLoop() {
 function startAnimation() {
     if (!isAnimationRunning) {
         isAnimationRunning = true;
-        console.log('[ANIMATION CONTROL] Animation started');
+        if (DEBUG) {
+            console.log('[ANIMATION CONTROL] Animation started');
+        }
         if (!isPaused && isTabVisible) {
             animationFrameId = requestAnimationFrame(gameLoop);
         }
@@ -257,7 +266,9 @@ function pauseAnimation() {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
         }
-        console.log('[ANIMATION CONTROL] Animation paused');
+        if (DEBUG) {
+            console.log('[ANIMATION CONTROL] Animation paused');
+        }
     }
 }
 
@@ -267,7 +278,9 @@ function pauseAnimation() {
 function resumeAnimation() {
     if (isPaused) {
         isPaused = false;
-        console.log('[ANIMATION CONTROL] Animation resumed');
+        if (DEBUG) {
+            console.log('[ANIMATION CONTROL] Animation resumed');
+        }
         if (isAnimationRunning && isTabVisible) {
             animationFrameId = requestAnimationFrame(gameLoop);
         }
@@ -283,7 +296,9 @@ function stopAnimation() {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
     }
-    console.log('[ANIMATION CONTROL] Animation stopped');
+    if (DEBUG) {
+        console.log('[ANIMATION CONTROL] Animation stopped');
+    }
 }
 
 /**
@@ -304,13 +319,17 @@ function handleVisibilityChange() {
     
     if (isTabVisible && !wasVisible) {
         // tab became visible
-        console.log('[VISIBILITY] Tab became visible - resuming animation');
+        if (DEBUG) {
+            console.log('[VISIBILITY] Tab became visible - resuming animation');
+        }
         if (isAnimationRunning && !isPaused) {
             animationFrameId = requestAnimationFrame(gameLoop);
         }
     } else if (!isTabVisible && wasVisible) {
         // tab became hidden
-        console.log('[VISIBILITY] Tab became hidden - pausing animation to save resources');
+        if (DEBUG) {
+            console.log('[VISIBILITY] Tab became hidden - pausing animation to save resources');
+        }
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
             animationFrameId = null;
@@ -346,7 +365,9 @@ startAnimation();
 function handleDPRChange() {
     const newDPR = window.devicePixelRatio || 1;
     if (newDPR !== currentDPR) {
-        console.log(`[DPR CHANGE] Device pixel ratio changed from ${currentDPR} to ${newDPR} - updating canvas`);
+        if (DEBUG) {
+            console.log(`[DPR CHANGE] Device pixel ratio changed from ${currentDPR} to ${newDPR} - updating canvas`);
+        }
         
         const newBackingStoreWidth = Math.ceil(C.GRID_SIZE * newDPR);
         const newBackingStoreHeight = Math.ceil(C.GRID_SIZE * newDPR);
@@ -371,7 +392,9 @@ function handleDPRChange() {
             // replace the old renderer reference
             Object.setPrototypeOf(renderer, newRenderer.constructor.prototype);
             Object.assign(renderer, newRenderer);
-            console.log(`[DPR CHANGE] Successfully updated renderer for ${newBackingStoreWidth}x${newBackingStoreHeight} backing store`);
+            if (DEBUG) {
+                console.log(`[DPR CHANGE] Successfully updated renderer for ${newBackingStoreWidth}x${newBackingStoreHeight} backing store`);
+            }
         } catch (error) {
             console.error('[DPR CHANGE] Failed to recreate renderer:', error.message);
             // fallback: revert canvas size
@@ -391,81 +414,112 @@ window.addEventListener('orientationchange', handleDPRChange);
 // === robustness testing functions ===
 // these functions can be called from browser console to test error handling
 
-/**
- * test computation error handling by injecting temporary failures
- * usage: window.testComputationErrors(3) - injects 3 consecutive errors
- */
-window.testComputationErrors = function(errorCount = 1) {
-    console.log(`[TEST] Injecting ${errorCount} computation errors...`);
-    let errorsInjected = 0;
-    
-    const originalStep = engine.step.bind(engine);
-    engine.step = function(simulationState) {
-        if (errorsInjected < errorCount) {
-            errorsInjected++;
-            throw new Error(`TEST: Injected computation error ${errorsInjected}/${errorCount}`);
-        } else {
-            // restore original function after test
-            engine.step = originalStep;
-            console.log('[TEST] Computation error injection complete - restored original function');
-            return originalStep(simulationState);
+// Wrap test utilities in DEBUG guard
+if (DEBUG) {
+    /**
+     * test computation error handling by injecting temporary failures
+     * usage: window.testComputationErrors(3) - injects 3 consecutive errors
+     */
+    window.testComputationErrors = function(errorCount = 1) {
+        console.log(`[TEST] Injecting ${errorCount} computation errors...`);
+        let errorsInjected = 0;
+        
+        const originalStep = engine.step.bind(engine);
+        engine.step = function(simulationState) {
+            if (errorsInjected < errorCount) {
+                errorsInjected++;
+                throw new Error(`TEST: Injected computation error ${errorsInjected}/${errorCount}`);
+            } else {
+                // restore original function after test
+                engine.step = originalStep;
+                console.log('[TEST] Computation error injection complete - restored original function');
+                return originalStep(simulationState);
+            }
+        };
+    };
+
+    /**
+     * test rendering error handling by injecting temporary failures
+     * usage: window.testRenderingErrors(2) - injects 2 consecutive errors
+     */
+    window.testRenderingErrors = function(errorCount = 1) {
+        console.log(`[TEST] Injecting ${errorCount} rendering errors...`);
+        let errorsInjected = 0;
+        
+        const originalDraw = renderer.draw.bind(renderer);
+        renderer.draw = function(simulationState) {
+            if (errorsInjected < errorCount) {
+                errorsInjected++;
+                throw new Error(`TEST: Injected rendering error ${errorsInjected}/${errorCount} - simulating WebGL failure`);
+            } else {
+                // restore original function after test
+                renderer.draw = originalDraw;
+                console.log('[TEST] Rendering error injection complete - restored original function');
+                return originalDraw(simulationState);
+            }
+        };
+    };
+
+    /**
+     * test severe computation errors that trigger graceful degradation
+     * usage: window.testComputationDegradation() - triggers 5+ consecutive errors
+     */
+    window.testComputationDegradation = function() {
+        console.log('[TEST] Testing computation degradation (5+ consecutive errors)...');
+        window.testComputationErrors(6);
+    };
+
+    /**
+     * test severe rendering errors that trigger recovery attempts
+     * usage: window.testRenderingRecovery() - triggers 3+ consecutive errors
+     */
+    window.testRenderingRecovery = function() {
+        console.log('[TEST] Testing rendering recovery (3+ consecutive errors)...');
+        window.testRenderingErrors(4);
+    };
+
+    /**
+     * test state corruption detection
+     * usage: window.testStateCorruption() - corrupts wave function data
+     */
+    window.testStateCorruption = function() {
+        console.log('[TEST] Testing state corruption detection...');
+        if (state.psi && state.psi.length > 0) {
+            state.psi[0] = NaN;
+            state.psi[1] = Infinity;
+            console.log('[TEST] Wave function corrupted with NaN/Infinity - check for detection on next frame');
         }
     };
-};
 
-/**
- * test rendering error handling by injecting temporary failures
- * usage: window.testRenderingErrors(2) - injects 2 consecutive errors
- */
-window.testRenderingErrors = function(errorCount = 1) {
-    console.log(`[TEST] Injecting ${errorCount} rendering errors...`);
-    let errorsInjected = 0;
-    
-    const originalDraw = renderer.draw.bind(renderer);
-    renderer.draw = function(simulationState) {
-        if (errorsInjected < errorCount) {
-            errorsInjected++;
-            throw new Error(`TEST: Injected rendering error ${errorsInjected}/${errorCount} - simulating WebGL failure`);
-        } else {
-            // restore original function after test
-            renderer.draw = originalDraw;
-            console.log('[TEST] Rendering error injection complete - restored original function');
-            return originalDraw(simulationState);
-        }
+    /**
+     * test animation control system
+     * usage: window.testAnimationControl() - test pause/resume functionality
+     */
+    window.testAnimationControl = function() {
+        console.log('[TEST] Testing animation control system...');
+        console.log('[TEST] Current state:', {
+            running: isAnimationRunning,
+            paused: isPaused,
+            visible: isTabVisible
+        });
+        
+        setTimeout(() => {
+            console.log('[TEST] Pausing animation...');
+            pauseAnimation();
+        }, 1000);
+        
+        setTimeout(() => {
+            console.log('[TEST] Resuming animation...');
+            resumeAnimation();
+        }, 3000);
+        
+        setTimeout(() => {
+            console.log('[TEST] Animation control test complete');
+        }, 4000);
     };
-};
+}
 
-/**
- * test severe computation errors that trigger graceful degradation
- * usage: window.testComputationDegradation() - triggers 5+ consecutive errors
- */
-window.testComputationDegradation = function() {
-    console.log('[TEST] Testing computation degradation (5+ consecutive errors)...');
-    window.testComputationErrors(6);
-};
-
-/**
- * test severe rendering errors that trigger recovery attempts  
- * usage: window.testRenderingRecovery() - triggers 3+ consecutive errors
- */
-window.testRenderingRecovery = function() {
-    console.log('[TEST] Testing rendering recovery (3+ consecutive errors)...');
-    window.testRenderingErrors(4);
-};
-
-/**
- * test state corruption detection
- * usage: window.testStateCorruption() - corrupts wave function data
- */
-window.testStateCorruption = function() {
-    console.log('[TEST] Testing state corruption detection...');
-    if (state.psi && state.psi.length > 0) {
-        state.psi[0] = NaN;
-        state.psi[1] = Infinity;
-        console.log('[TEST] Wave function corrupted with NaN/Infinity - check for detection on next frame');
-    }
-};
-
+// Keep error monitoring and reset functions always available for production monitoring
 /**
  * monitor error rates and performance
  * usage: window.getErrorStats() - returns current error statistics
@@ -492,38 +546,14 @@ window.resetErrorCounters = function() {
     consecutiveRenderingErrors = 0;
     skipComputationFrames = 0;
     lastErrorLogTime = 0;
-    console.log('[TEST] All error counters reset');
+    if (DEBUG) {
+        console.log('[TEST] All error counters reset');
+    }
 };
 
-/**
- * test animation control system
- * usage: window.testAnimationControl() - test pause/resume functionality
- */
-window.testAnimationControl = function() {
-    console.log('[TEST] Testing animation control system...');
-    console.log('[TEST] Current state:', {
-        running: isAnimationRunning,
-        paused: isPaused,
-        visible: isTabVisible
-    });
-    
-    setTimeout(() => {
-        console.log('[TEST] Pausing animation...');
-        pauseAnimation();
-    }, 1000);
-    
-    setTimeout(() => {
-        console.log('[TEST] Resuming animation...');
-        resumeAnimation();
-    }, 3000);
-    
-    setTimeout(() => {
-        console.log('[TEST] Animation control test complete');
-    }, 4000);
-};
-
-console.log(`
-bug #14 (unconditional animation loop) fixed - new features available:
+if (DEBUG) {
+    console.log(`
+DEBUG MODE ENABLED - development features available:
 
 ANIMATION CONTROL:
 • Spacebar - pause/resume animation
@@ -538,9 +568,12 @@ TESTING FUNCTIONS:
 • window.testComputationDegradation() - test graceful degradation
 • window.testRenderingRecovery() - test recovery mechanisms
 • window.testStateCorruption() - test corruption detection
+
+MONITORING FUNCTIONS (always available):
 • window.getErrorStats() - view current error statistics
 • window.resetErrorCounters() - reset for fresh testing
 
 RESOURCE CONSERVATION: animation automatically pauses when tab is hidden.
 switch to another tab and return - check console for visibility messages.
-`);
+    `);
+}
