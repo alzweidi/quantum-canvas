@@ -63,12 +63,13 @@ export class Renderer {
                 }
             `,
 
-            // fragment shader - simplified quantum wave function visualization
+            // fragment shader - simplified quantum wave function visualisation
             frag: `
                 precision mediump float;
                 uniform sampler2D psiTexture;
                 uniform sampler2D potentialTexture;
                 uniform float u_brightness;
+                uniform float u_potentialMax;
                 uniform vec2 u_textureSize;
                 varying vec2 uv;
 
@@ -130,7 +131,7 @@ export class Renderer {
                 vec3 applyPotentialBarriers(vec3 baseColor, float potential) {
                     if (potential > 0.01) {
                         vec3 barrierColor = vec3(0.8, 0.1, 0.1); // Red barriers
-                        float barrierOpacity = clamp(potential / 100.0, 0.0, 0.8);
+                        float barrierOpacity = clamp(potential / u_potentialMax, 0.0, 0.8);
                         return mix(baseColor, barrierColor, barrierOpacity);
                     }
                     return baseColor;
@@ -169,7 +170,7 @@ export class Renderer {
                     float phase = atan(psi.y, psi.x);
                     
                     // Read potential barrier
-                    float potential = texture2D(potentialTexture, uv).r * 100.0; // Denormalize
+                    float potential = texture2D(potentialTexture, uv).r * u_potentialMax;
                     
                     // Enhance small magnitudes for better visibility
                     float enhancedMagnitude = enhanceMagnitude(magnitude);
@@ -183,7 +184,7 @@ export class Renderer {
                     // Apply phase contours
                     vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
                     
-                    // Gate out all that fucking bull shit quantisation noise: anything below 0.01 is background
+                    // Filter out quantization noise: anything below 0.01 is background
                     vec3 quantumColor;
                     if (magnitude < 0.01) {
                         // background stays pure black
@@ -212,6 +213,7 @@ export class Renderer {
                 psiTexture: this.psiTexture,
                 potentialTexture: this.potentialTexture,
                 u_brightness: this.regl.prop('brightness'),
+                u_potentialMax: this.regl.prop('potentialMax'),
                 u_textureSize: this.regl.prop('textureSize')
             },
 
@@ -284,6 +286,10 @@ export class Renderer {
             this.scalingDiagnostics.lastWarningFrame = this.scalingDiagnostics.frameCount;
         }
 
+        // define potential scaling from barrier energy (default 300.0)
+        const potentialMax = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
+        const potentialToByte = 255 / potentialMax;
+
         // pack potential barrier data into rgba texture format with DPR scaling
         for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
             for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
@@ -293,8 +299,11 @@ export class Renderer {
                 const simIdx = simY * simGridSize + simX;
                 const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
                 
-                // normalise potential (typically 0-100) to 0-255 range
-                const normalizedPotential = Math.min(255, Math.floor(state.potential[simIdx] * 2.55));
+                // normalise potential using dynamic scaling based on potentialMax
+                const normalizedPotential = Math.max(
+                    0,
+                    Math.min(255, Math.floor(state.potential[simIdx] * potentialToByte))
+                );
                 
                 this.potentialDataBuffer[backingIdx] = normalizedPotential;     // potential -> r
                 this.potentialDataBuffer[backingIdx + 1] = 0;                   // green
@@ -315,6 +324,7 @@ export class Renderer {
 // execute the draw command with brightness parameter and current texture size
         this.drawCommand({
             brightness: state.params.brightness,
+            potentialMax: potentialMax,
             textureSize: [this.backingStoreWidth, this.backingStoreHeight]
         });
     }
