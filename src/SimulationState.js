@@ -188,24 +188,127 @@ export class SimulationState {
         }
     }
 
-    shiftWaveFunction(dx, dy) {
-        const tempPsi = new Float64Array(this.psi.length).fill(0);
+    /**
+     * shift wave function by integer grid cells with multiple boundary handling modes
+     * @param {number} dx - shift in x direction (grid cells)
+     * @param {number} dy - shift in y direction (grid cells)
+     * @param {Object} opts - options object
+     * @param {string} opts.mode - boundary mode: 'wrap', 'reflect', 'drop' (default: 'wrap')
+     * @param {boolean} opts.renormalize - whether to renormalise after shift (default: true)
+     */
+    shiftWaveFunction(dx, dy, opts = {}) {
+        const { mode = 'wrap', renormalize = true } = opts;
         const width = this.gridSize.width;
         const height = this.gridSize.height;
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const newX = x + dx;
-                const newY = y + dy;
-                if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+        const tempPsi = new Float64Array(this.psi.length);
+        
+        // handle boundary modes
+        if (mode === 'wrap') {
+            // wrap around edges - preserve all samples
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // wrap coordinates using modulo
+                    let newX = (x + dx) % width;
+                    let newY = (y + dy) % height;
+                    if (newX < 0) newX += width;
+                    if (newY < 0) newY += height;
+                    
                     const oldIdx = (y * width + x) * 2;
                     const newIdx = (newY * width + newX) * 2;
                     tempPsi[newIdx] = this.psi[oldIdx];
                     tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
                 }
             }
+        } else if (mode === 'reflect') {
+            // reflect at boundaries - preserve all samples
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let newX = x + dx;
+                    let newY = y + dy;
+                    
+                    // reflect at x boundaries
+                    if (newX < 0) {
+                        newX = -newX - 1;
+                    } else if (newX >= width) {
+                        newX = 2 * width - newX - 1;
+                    }
+                    
+                    // reflect at y boundaries
+                    if (newY < 0) {
+                        newY = -newY - 1;
+                    } else if (newY >= height) {
+                        newY = 2 * height - newY - 1;
+                    }
+                    
+                    // handle multiple reflections for large shifts
+                    while (newX < 0 || newX >= width || newY < 0 || newY >= height) {
+                        if (newX < 0) newX = -newX - 1;
+                        if (newX >= width) newX = 2 * width - newX - 1;
+                        if (newY < 0) newY = -newY - 1;
+                        if (newY >= height) newY = 2 * height - newY - 1;
+                    }
+                    
+                    const oldIdx = (y * width + x) * 2;
+                    const newIdx = (newY * width + newX) * 2;
+                    tempPsi[newIdx] = this.psi[oldIdx];
+                    tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+                }
+            }
+        } else if (mode === 'drop') {
+            // drop out-of-bounds samples (legacy behavior)
+            tempPsi.fill(0);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const newX = x + dx;
+                    const newY = y + dy;
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                        const oldIdx = (y * width + x) * 2;
+                        const newIdx = (newY * width + newX) * 2;
+                        tempPsi[newIdx] = this.psi[oldIdx];
+                        tempPsi[newIdx + 1] = this.psi[oldIdx + 1];
+                    }
+                }
+            }
+        } else {
+            throw new Error(`Unknown boundary mode: ${mode}. Use 'wrap', 'reflect', or 'drop'.`);
         }
+        
+        // apply the shift
         this.psi.set(tempPsi);
+        
+        // renormalise using same metric as resetWaveFunction
+        if (renormalize) {
+            this._renormalizeWaveFunction();
+        }
+    }
+    
+    /**
+     * renormalise wave function using same metric as resetWaveFunction: √(Σ|ψ|² · dx · dy) = 1
+     * @private
+     */
+    _renormalizeWaveFunction() {
+        const width = this.gridSize.width;
+        const height = this.gridSize.height;
+        const dx = C.DOMAIN_SIZE / width;
+        const dy = C.DOMAIN_SIZE / height;
+        
+        // calculate current norm
+        let norm = 0.0;
+        for (let i = 0; i < width * height; i++) {
+            const real = this.psi[i * 2];
+            const imag = this.psi[i * 2 + 1];
+            norm += real * real + imag * imag;
+        }
+        
+        // apply same normalization as resetWaveFunction
+        norm = Math.sqrt(norm * dx * dy);
+        
+        // avoid division by zero
+        if (norm > 1e-15) {
+            for (let i = 0; i < this.psi.length; i++) {
+                this.psi[i] /= norm;
+            }
+        }
     }
 
     /**

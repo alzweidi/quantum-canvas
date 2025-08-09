@@ -133,6 +133,40 @@ for (let i = 0; i < this.buffer1.length; i += 2) {
     }
 
     /**
+     * sub-pixel spatial shift: ψ(x,y) ← F^{-1}{ e^{i(kx*dx + ky*dy)} F{ψ} }.
+     * dxPhysical, dyPhysical are in the same physical units as DOMAIN_SIZE.
+     * @param {SimulationState} state - the simulation state containing wave function
+     * @param {number} dxPhysical - horizontal shift in physical units (same as DOMAIN_SIZE)
+     * @param {number} dyPhysical - vertical shift in physical units (same as DOMAIN_SIZE)
+     */
+    shiftWaveFunctionSubpixel(state, dxPhysical, dyPhysical) {
+        const W = this.gridSize.width, H = this.gridSize.height;
+        const dx = C.DOMAIN_SIZE / W, dy = C.DOMAIN_SIZE / H;
+        const dkx = (2.0 * Math.PI) / (W * dx);
+        const dky = (2.0 * Math.PI) / (H * dy);
+
+        // 1) FFT ψ → buffer1
+        this._fft2D(state.psi, this.buffer1);
+
+        // 2) multiply by e^{i(kx*dx + ky*dy)} in k-space (canonical row-major layout)
+        for (let y = 0; y < H; y++) {
+            const ky = (y < H/2) ? y * dky : (y - H) * dky;
+            for (let x = 0; x < W; x++) {
+                const kx = (x < W/2) ? x * dkx : (x - W) * dkx;
+                const phase = kx * dxPhysical + ky * dyPhysical;
+                const c = Math.cos(phase), s = Math.sin(phase);
+                const idx = (y * W + x) * 2;
+                const re = this.buffer1[idx], im = this.buffer1[idx + 1];
+                this.buffer1[idx]     = re * c - im * s;
+                this.buffer1[idx + 1] = re * s + im * c;
+            }
+        }
+
+        // 3) IFFT → ψ
+        this._ifft2D(this.buffer1, state.psi);
+    }
+
+    /**
      * perform FFT on a single row of interleaved complex data
      * @param {Float64Array} input - interleaved complex input array
      * @param {Float64Array} output - interleaved complex output array
