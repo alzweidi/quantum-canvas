@@ -63,26 +63,24 @@ export class SimulationState {
      * @private
      */
     _precalculateKineticOperator() {
-        const size = this.gridSize.width;
-        // FIX: k-space frequency calculation must include physical grid spacing
-        const dx = C.DOMAIN_SIZE / this.gridSize.width;
-        const dk = (2.0 * Math.PI) / (size * dx);
+        const width  = this.gridSize.width;
+        const height = this.gridSize.height;
+
+        // include physical spacing in each axis
+        const dx  = C.DOMAIN_SIZE / width;
+        const dy  = C.DOMAIN_SIZE / height;
+        const dkx = (2.0 * Math.PI) / (width  * dx);
+        const dky = (2.0 * Math.PI) / (height * dy);
         const coeff = (C.HBAR * C.HBAR) / (2.0 * C.MASS);
 
-        for (let i = 0; i < size; i++) {
-            for (let j = 0; j < size; j++) {
-                // calculate k-space coordinates (FFT frequency domain)
-                const kx = (i < size / 2) ? i * dk : (i - size) * dk;
-                const ky = (j < size / 2) ? j * dk : (j - size) * dk;
-                
-                // calculate k² magnitude
-                const kSquared = kx * kx + ky * ky;
-                
-                // kinetic energy operator value
+        // row-major fill: y outer, x inner
+        for (let y = 0; y < height; y++) {
+            const ky = (y < height / 2) ? y * dky : (y - height) * dky;
+            for (let x = 0; x < width; x++) {
+                const kx = (x < width / 2) ? x * dkx : (x - width) * dkx;
+                const kSquared = kx*kx + ky*ky;
                 const kineticEnergy = coeff * kSquared;
-                
-                // store as real scalar (kinetic energy is purely real)
-                const idx = i * size + j;
+                const idx = y * width + x;     // row-major
                 this.kineticOperatorK[idx] = kineticEnergy;
             }
         }
@@ -139,10 +137,11 @@ export class SimulationState {
      */
     resetWaveFunction() {
         this._clampMomentumToNyquist();
-        const size = this.gridSize.width;
+        const width  = this.gridSize.width;
+        const height = this.gridSize.height;
         // FIX: calculate grid spacing from physical domain size and resolution
-        const dx = C.DOMAIN_SIZE / this.gridSize.width;
-        const dy = C.DOMAIN_SIZE / this.gridSize.height;
+        const dx = C.DOMAIN_SIZE / width;
+        const dy = C.DOMAIN_SIZE / height;
         
         // use tunable position parameters
         const x0 = this.params.x0;
@@ -150,44 +149,41 @@ export class SimulationState {
         
         // calculate normalization constant
         let norm = 0.0;
-        const tempReal = new Array(size * size);
-        const tempImag = new Array(size * size);
+        const tempReal = new Array(width * height);
+        const tempImag = new Array(width * height);
         
-        // first pass: calculate unnormalized wave function
-        for (let i = 0; i < size; i++) {
-            for (let j = 0; j < size; j++) {
-                const x = i * dx;
-                const y = j * dy;
-                
-                // gaussian envelope using tunable parameters
-                const gaussianArg = -((x - x0) * (x - x0) + (y - y0) * (y - y0)) / (2.0 * this.params.sigma * this.params.sigma);
+        // first pass: compute unnormalized ψ into temp arrays (row-major)
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const xf = x * dx;
+                const yf = y * dy;
+
+                // gaussian envelope & phase (unchanged math)
+                const gaussianArg = -(((xf - x0) * (xf - x0)) + ((yf - y0) * (yf - y0)))
+                                    / (2.0 * this.params.sigma * this.params.sigma);
                 const amplitude = Math.exp(gaussianArg);
-                
-                // phase factor using tunable momentum parameters
-                const phaseArg = (this.params.px * x + this.params.py * y) / C.HBAR;
+
+                const phaseArg = (this.params.px * xf + this.params.py * yf) / C.HBAR;
                 const real = amplitude * Math.cos(phaseArg);
                 const imag = amplitude * Math.sin(phaseArg);
-                
-                const idx = i * size + j;
+
+                const idx = y * width + x;     // row-major
                 tempReal[idx] = real;
                 tempImag[idx] = imag;
-                
-                // add to normalization
-                norm += real * real + imag * imag;
+                norm += real*real + imag*imag;
             }
         }
         
         // normalise
         norm = Math.sqrt(norm * dx * dy);
         
-        // second pass: store normalized wave function
-        for (let i = 0; i < size; i++) {
-            for (let j = 0; j < size; j++) {
-                const idx = (i * size + j) * 2;
-                const tempIdx = i * size + j;
-                
-                this.psi[idx] = tempReal[tempIdx] / norm;       // real part
-                this.psi[idx + 1] = tempImag[tempIdx] / norm;  // imaginary part
+        // second pass: write interleaved ψ in row-major
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const t = y * width + x;         // temp index (row-major)
+                const idx = t * 2;              // interleaved complex index
+                this.psi[idx]     = tempReal[t] / norm;
+                this.psi[idx + 1] = tempImag[t] / norm;
             }
         }
     }
