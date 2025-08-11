@@ -245,7 +245,8 @@ export class SimulationState {
      * @param {boolean} opts.renormalize - whether to renormalise after shift (default: true)
      */
     shiftWaveFunction(dx, dy, opts = {}) {
-        const { mode = 'wrap', renormalize = true } = opts;
+        let { mode = 'wrap', renormalize = true } = opts;
+        if (mode === 'wrap') renormalize = false; // wrap is a permutation -> norm preserved
         const width = this.gridSize.width;
         const height = this.gridSize.height;
         
@@ -355,7 +356,7 @@ export class SimulationState {
      * uses dt scaling to ensure time-step independence
      * @private
      */
-    _applyAbsorbingBoundaries() {
+    _applyAbsorbingBoundaries(factor = 1.0) {
         // only apply absorbing boundaries if mode allows it
         if (this.params.boundaryMode === 'absorbing' || this.params.boundaryMode === 'both') {
             const width = this.gridSize.width;
@@ -383,7 +384,7 @@ export class SimulationState {
                         // convert damping rate to physical units for resolution independence
                         const cellSize = C.DOMAIN_SIZE / width;
                         const dampingRate = 0.06 * (boundaryWidth - minDist) * cellSize; // physical units
-                        const dampingFactor = Math.exp(-dampingRate * this.params.dt);
+                        const dampingFactor = Math.exp(-dampingRate * this.params.dt * factor);
                         
                         this.psi[idx] *= dampingFactor;         // real part
                         this.psi[idx + 1] *= dampingFactor;     // imaginary part

@@ -56,13 +56,13 @@ export class ComputationEngine {
      * @param {SimulationState} state - the simulation state to advance
      */
     step(state) {
+        // absorber is a separate non-Hermitian operator; apply as symmetric half-kicks
+        // so the combined (Hamiltonian ⊕ absorber) scheme is second order
+        state._applyAbsorbingBoundaries(0.5);
         this._applyPotential(state);          // V/2
         this._applyKinetic(state);            // T
         this._applyPotential(state);          // V/2
-        
-        // apply absorbing boundaries only after complete strang splitting
-        // to preserve time-reversibility and second-order accuracy
-        state._applyAbsorbingBoundaries();
+        state._applyAbsorbingBoundaries(0.5);
     }
     
     /**
