@@ -1,11 +1,51 @@
 // renderer.js — physically faithful renderer for the quantum wave function
-// - uses float RGBA textures when supported; else uint8 + global scale (lossless phase, correct amplitude).
-// - textures are sized to the SIMULATION GRID (not DPR), letting the GPU upscale cleanly.
-// - no per-pixel normalisation: preserves |ψ| and phase so interference looks right.
+// - uses float rgba textures when supported; else uint8 + global scale (lossless phase, correct amplitude).
+// - textures are sized to the simulation grid (not dpr), letting the gpu upscale cleanly.
+// - no per-pixel normalization: preserves |ψ| and phase so interference looks right.
 
 const DEBUG =
   new URLSearchParams(location.search).has('debug') ||
   (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1');
+
+// feature flags (from ?query or localStorage)
+const qs = new URLSearchParams(location.search);
+function flagBool(qKey, storageKey, defaultValue) {
+  try {
+    if (qs.has(qKey)) {
+      const v = qs.get(qKey);
+      return !(v === '0' || v === 'false');
+    }
+    if (typeof localStorage !== 'undefined') {
+      const v = localStorage.getItem(storageKey);
+      if (v != null) return v === '1' || v === 'true';
+    }
+  } catch (_) {}
+  return defaultValue;
+}
+function flagNum(qKey, storageKey, defaultValue) {
+  try {
+    if (qs.has(qKey)) {
+      const n = Number(qs.get(qKey));
+      if (Number.isFinite(n)) return n;
+    }
+    if (typeof localStorage !== 'undefined') {
+      const v = localStorage.getItem(storageKey);
+      if (v != null) {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+  } catch (_) {}
+  return defaultValue;
+}
+
+// a/b toggle to restore old two-texture path (psi + potential separate)
+const RENDERER_TWO_TEXTURES = flagBool('rendererTwoTextures', 'qc.renderer.twoTextures', false);
+// enable half-float path when float32 unavailable
+const ENABLE_HALF_FLOAT = flagBool('halfFloat', 'qc.renderer.halfFloat', true);
+// uint8 scale scan cadence and smoothing
+const UINT8_SCALE_EVERY_N = flagNum('u8n', 'qc.renderer.u8n', 4);
+const UINT8_SCALE_SMOOTH_ALPHA = flagNum('u8alpha', 'qc.renderer.u8alpha', 0.5);
 
 export class Renderer {
   /**
@@ -29,49 +69,80 @@ export class Renderer {
     const spf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
     this.hasHighp = !!spf && spf.precision > 0;
 
-    // float texture support (WebGL2 has it; WebGL1 via extension)
-    this.supportsFloatTex = this.isWebGL2 || !!gl.getExtension('OES_texture_float');
+    // float/half-float texture support
+    this.supportsFloat32Tex = this.isWebGL2 || !!gl.getExtension('OES_texture_float');
     this.supportsFloatLinear = this.isWebGL2 || !!gl.getExtension('OES_texture_float_linear');
+    this.supportsHalfFloatTex = this.isWebGL2 || !!gl.getExtension('OES_texture_half_float');
+    this.supportsHalfFloatLinear = this.isWebGL2 || !!gl.getExtension('OES_texture_half_float_linear');
 
-    // create regl on our context (ask for float extensions explicitly in WebGL1)
-    this.regl = window.createREGL({
-      gl,
-      extensions: this.isWebGL2 ? [] : ['OES_texture_float', 'OES_texture_float_linear'],
-    });
+    // create regl on our context (ask for extensions explicitly in webgl1)
+    const extList = this.isWebGL2
+      ? []
+      : [
+          'OES_texture_float',
+          'OES_texture_float_linear',
+          'OES_texture_half_float',
+          'OES_texture_half_float_linear',
+        ];
+    this.regl = window.createREGL({ gl, extensions: extList });
 
-    // mode: true => uint8 fallback (with global scale); false => float textures
-    this.uint8Mode = !this.supportsFloatTex;
+    // choose texture type: float32 > half-float > uint8
+    this.textureType = this.supportsFloat32Tex
+      ? 'float'
+      : (ENABLE_HALF_FLOAT && this.supportsHalfFloatTex ? 'half float' : 'uint8');
+    // mode: true => uint8 fallback (with global scale); false => float/half-float textures
+    this.uint8Mode = (this.textureType === 'uint8');
 
-    // current sim texture allocation
+    // Current sim texture allocation
     this.texW = 0;
     this.texH = 0;
 
-    // GPU resources
+    // gpu resources
     this.psiTexture = null;
-    this.potentialTexture = null;
+    this.potentialTexture = null; // only used when two-texture path is enabled
 
-    // CPU staging buffers (allocated on first draw)
-    this.psiF32 = null;   // float path buffer (RGBA)
-    this.potF32 = null;
-    this.psiU8  = null;   // uint8 path buffer (RGBA)
-    this.potU8  = null;
+    // cpu staging buffers (allocated on first draw)
+    this.psiF32 = null;   // float/half-float path buffer (rgba)
+    this.potF32 = null;   // only for two-texture path
+    this.psiU8  = null;   // uint8 path buffer (rgba)
+    this.potU8  = null;   // only for two-texture path
 
     // last computed global scale (uint8 mode only)
     this.currentScale = 1.0;
+
+    // path/flag configuration
+    this.twoTextures = RENDERER_TWO_TEXTURES;
+    this.uint8ScaleEveryN = Math.max(1, UINT8_SCALE_EVERY_N | 0);
+    this.scaleSmoothAlpha = Math.min(0.99, Math.max(0.0, UINT8_SCALE_SMOOTH_ALPHA));
+    this.frameCounter = 0;
+    this.lastPotentialVersion = -1;
+    this.lastBarrierEnergy = NaN;
+    this.needPotInit = true; // force first-time pack of potential channel
+    this.bytesPerPixel = this.textureType === 'float' ? 16 : (this.textureType === 'half float' ? 8 : 4);
+
+    // instrumentation accumulators (debug only)
+    this.debugStats = {
+      lastSummaryTime: (typeof performance !== 'undefined' ? performance.now() : 0),
+      frames: 0,
+      packMs: 0,
+      uploadMs: 0,
+      drawMs: 0,
+      bytesUploaded: 0,
+    };
 
     // build draw command
     this.drawCommand = this._makeDrawCommand();
 
     if (DEBUG) {
       console.log(
-        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | floatTex=${this.supportsFloatTex} | floatLinear=${this.supportsFloatLinear} | mode=${this.uint8Mode ? 'UINT8+scale' : 'FLOAT'}`
+        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | type=${this.textureType} | float32=${this.supportsFloat32Tex} | half=${this.supportsHalfFloatTex} | linear(float=${this.supportsFloatLinear}, half=${this.supportsHalfFloatLinear}) | mode=${this.uint8Mode ? 'UINT8+scale' : (this.textureType === 'half float' ? 'HALF' : 'FLOAT')} | twoTex=${this.twoTextures}`
       );
     }
   }
 
   // create / update textures and staging buffers for a given grid size
   _ensureTextures(simW, simH) {
-    if (this.texW === simW && this.texH === simH && this.psiTexture && this.potentialTexture) {
+    if (this.texW === simW && this.texH === simH && this.psiTexture && (this.twoTextures ? this.potentialTexture : true)) {
       return;
     }
 
@@ -82,48 +153,64 @@ export class Renderer {
     if (this.psiTexture) this.psiTexture.destroy();
     if (this.potentialTexture) this.potentialTexture.destroy();
 
-    const filtering = this.supportsFloatLinear ? 'linear' : 'nearest';
+    const filtering = this.textureType === 'float'
+      ? (this.supportsFloatLinear ? 'linear' : 'nearest')
+      : (this.textureType === 'half float'
+          ? ((this.supportsHalfFloatLinear || this.isWebGL2) ? 'linear' : 'nearest')
+          : 'linear');
 
     if (this.uint8Mode) {
-      // ----- UINT8 TEXTURES (normalised upload) -----
+      // ----- uint8 texture (normalized upload) -----
       this.psiTexture = this.regl.texture({
         width: simW, height: simH,
         format: 'rgba', type: 'uint8',
         mag: 'linear', min: 'linear', wrapS: 'clamp', wrapT: 'clamp',
         data: null,
       });
-      this.potentialTexture = this.regl.texture({
-        width: simW, height: simH,
-        format: 'rgba', type: 'uint8',
-        mag: 'linear', min: 'linear', wrapS: 'clamp', wrapT: 'clamp',
-        data: null,
-      });
+      if (this.twoTextures) {
+        this.potentialTexture = this.regl.texture({
+          width: simW, height: simH,
+          format: 'rgba', type: 'uint8',
+          mag: 'linear', min: 'linear', wrapS: 'clamp', wrapT: 'clamp',
+          data: null,
+        });
+      } else {
+        this.potentialTexture = null;
+      }
 
       this.psiU8 = new Uint8Array(simW * simH * 4);
-      this.potU8 = new Uint8Array(simW * simH * 4);
-      this.psiF32 = this.potF32 = null; // free
+      this.potU8 = this.twoTextures ? new Uint8Array(simW * simH * 4) : null;
+      this.psiF32 = null;
+      this.potF32 = null;
     } else {
-      // ----- FLOAT TEXTURES (RGBA32F) -----
+      // ----- float or half-float texture -----
       this.psiTexture = this.regl.texture({
         width: simW, height: simH,
-        format: 'rgba', type: 'float',
+        format: 'rgba', type: this.textureType, // 'float' or 'half float'
         mag: filtering, min: filtering, wrapS: 'clamp', wrapT: 'clamp',
         data: null,
       });
-      this.potentialTexture = this.regl.texture({
-        width: simW, height: simH,
-        format: 'rgba', type: 'float',
-        mag: filtering, min: filtering, wrapS: 'clamp', wrapT: 'clamp',
-        data: null,
-      });
+      if (this.twoTextures) {
+        this.potentialTexture = this.regl.texture({
+          width: simW, height: simH,
+          format: 'rgba', type: this.textureType,
+          mag: filtering, min: filtering, wrapS: 'clamp', wrapT: 'clamp',
+          data: null,
+        });
+      } else {
+        this.potentialTexture = null;
+      }
 
       this.psiF32 = new Float32Array(simW * simH * 4);
-      this.potF32 = new Float32Array(simW * simH * 4);
-      this.psiU8 = this.potU8 = null; // free
+      this.potF32 = this.twoTextures ? new Float32Array(simW * simH * 4) : null;
+      this.psiU8 = null;
+      this.potU8 = null;
     }
 
+    this.needPotInit = true; // force packing B on first frame after realloc
+
     if (DEBUG) {
-      console.log(`[Renderer] Allocated textures ${simW}×${simH} (mode: ${this.uint8Mode ? 'uint8' : 'float'})`);
+      console.log(`[Renderer] Allocated textures ${simW}×${simH} (type: ${this.textureType}${this.twoTextures ? ', two-textures' : ', single-texture'})`);
     }
   }
 
@@ -142,7 +229,7 @@ export class Renderer {
 
     // domain-coloring: hue = phase, brightness ~ sqrt(|ψ|)
     // uint8 fallback reconstructs ψ via uniform u_scale (global).
-    const frag = `
+    const frag = this.twoTextures ? `
       precision ${precision} float;
       varying vec2 vUv;
 
@@ -152,58 +239,94 @@ export class Renderer {
       uniform float u_brightness;
       uniform float u_magCutoff;
       uniform float u_scale;     // uint8 mode only (global amplitude scale)
-      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float
+      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
 
       const float PI = 3.141592653589793;
       const float TAU = 6.283185307179586;
 
       vec3 hsv2rgb(vec3 c) {
-        // from Inigo Quilez
         vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
         return c.z * mix(vec3(1.0), rgb, c.y);
       }
 
       void main() {
         vec4 t = texture2D(psiTexture, vUv);
-        vec2 psi;
-        if (u_uint8Mode == 1) {
-          // t.rg in [0,1] → [-1,1] → multiply global scale
-          psi = (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12);
-        } else {
-          // float path: stored as raw re,im in RG
-          psi = t.rg;
-        }
+        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
 
-        float mag = length(psi);              // |ψ|
-        if (mag < u_magCutoff) {
-          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-          return;
-        }
+        float mag = length(psi);
+        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
 
-        float phase = atan(psi.y, psi.x);     // [-π, π]
-        float hue   = fract((phase + PI) / TAU); // [0,1]
-        // perceptual brightness: use sqrt(|ψ|) and external brightness
+        float phase = atan(psi.y, psi.x);
+        float hue   = fract((phase + PI) / TAU);
         float amp   = sqrt(mag) * u_brightness;
+        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
 
-        // base color: full saturation, value=1, then scale by amp
-        vec3 base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
-
-        // subtle phase contours (K lines per 2π)
         float K = 24.0;
         float f = abs(fract((phase + PI) / TAU * K) - 0.5);
-        float contour = smoothstep(0.48, 0.5, f); // thin dark lines
+        float contour = smoothstep(0.48, 0.5, f);
         base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
 
-        // Potential overlay (normalized 0..1 in texture R)
         float pot = texture2D(potentialTexture, vUv).r;
-        // Slightly quadratic opacity to emphasize higher barriers
         float potAlpha = 0.6 * pot * pot;
         vec3 barrier = vec3(0.85, 0.15, 0.15);
         vec3 color = mix(base, barrier, potAlpha);
+        gl_FragColor = vec4(color, 1.0);
+      }
+    ` : `
+      precision ${precision} float;
+      varying vec2 vUv;
 
+      uniform sampler2D psiTexture;
+
+      uniform float u_brightness;
+      uniform float u_magCutoff;
+      uniform float u_scale;     // uint8 mode only (global amplitude scale)
+      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
+
+      const float PI = 3.141592653589793;
+      const float TAU = 6.283185307179586;
+
+      vec3 hsv2rgb(vec3 c) {
+        vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        return c.z * mix(vec3(1.0), rgb, c.y);
+      }
+
+      void main() {
+        vec4 t = texture2D(psiTexture, vUv);
+        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+
+        float mag = length(psi);
+        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
+
+        float phase = atan(psi.y, psi.x);
+        float hue   = fract((phase + PI) / TAU);
+        float amp   = sqrt(mag) * u_brightness;
+        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+
+        float K = 24.0;
+        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
+        float contour = smoothstep(0.48, 0.5, f);
+        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+
+        // Potential overlay from B channel (normalized 0..1 in t.b)
+        float pot = t.b;
+        float potAlpha = 0.6 * pot * pot;
+        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        vec3 color = mix(base, barrier, potAlpha);
         gl_FragColor = vec4(color, 1.0);
       }
     `;
+
+    const uniforms = {
+      psiTexture: this.regl.prop('psi'),
+      u_brightness: this.regl.prop('brightness'),
+      u_magCutoff: this.regl.prop('magCutoff'),
+      u_scale: this.regl.prop('uScale'),
+      u_uint8Mode: this.regl.prop('uint8Mode'),
+    };
+    if (this.twoTextures) {
+      uniforms.potentialTexture = this.regl.prop('pot');
+    }
 
     return this.regl({
       vert,
@@ -214,14 +337,7 @@ export class Renderer {
           [-1,  1], [ 1, -1], [ 1,  1],
         ],
       },
-      uniforms: {
-        psiTexture: this.regl.prop('psi'),
-        potentialTexture: this.regl.prop('pot'),
-        u_brightness: this.regl.prop('brightness'),
-        u_magCutoff: this.regl.prop('magCutoff'),
-        u_scale: this.regl.prop('uScale'),
-        u_uint8Mode: this.regl.prop('uint8Mode'),
-      },
+      uniforms,
       count: 6,
     });
   }
@@ -235,87 +351,248 @@ export class Renderer {
     const simH = state.gridSize.height;
     this._ensureTextures(simW, simH);
 
-    // potential normalisation base (kept same as your code path)
-    const potentialMax = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
+    // potential normalisation base (kept same as before)
+    const barrierEnergy = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
+    const invMax = barrierEnergy > 0 ? (1.0 / barrierEnergy) : 0.0;
+    const pixelCount = simW * simH;
+
+    // determine if we must repack potential (b channel or separate texture)
+    const potDirty = this.needPotInit || (state.potentialVersion !== this.lastPotentialVersion) || (this.lastBarrierEnergy !== barrierEnergy);
+
+    // instrumentation timers
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : 0);
 
     if (this.uint8Mode) {
-      // ---- pass 1: find global amplitude scale S = max(|re_i|, |im_i|) ----
+      // uint8 path: pack ψ into rg using global scale; optionally repack potential
       const psi = state.psi;
-      let S = 0.0;
-      for (let i = 0; i < psi.length; i += 2) {
-        const ar = Math.abs(psi[i]);
-        const ai = Math.abs(psi[i + 1]);
-        if (ar > S) S = ar;
-        if (ai > S) S = ai;
-      }
-      if (!Number.isFinite(S) || S < 1e-12) S = 1.0;
-      this.currentScale = S;
-
-      // ---- pass 2: pack ψ to RG (uint8), normalized by S (lossless phase; amp restored in shader) ----
       const out = this.psiU8;
-      let o = 0;
-      for (let i = 0; i < psi.length; i += 2) {
-        const r = psi[i] / S;       // [-?, ?] → typically small
-        const im = psi[i + 1] / S;
-        // map [-1,1] → [0,255]
+      const V = state.potential;
+
+      // periodic scan of s
+      let scannedThisFrame = false;
+      if ((this.frameCounter % this.uint8ScaleEveryN) === 0) {
+        let S = 0.0;
+        for (let i = 0; i < psi.length; i += 2) {
+          const ar = Math.abs(psi[i]);
+          const ai = Math.abs(psi[i + 1]);
+          if (ar > S) S = ar;
+          if (ai > S) S = ai;
+        }
+        if (!Number.isFinite(S) || S < 1e-12) S = 1.0;
+        const smoothed = this.scaleSmoothAlpha * this.currentScale + (1.0 - this.scaleSmoothAlpha) * S;
+        this.currentScale = Math.max(smoothed, S); // never below S to avoid clipping
+        scannedThisFrame = true;
+      }
+
+      // pack pass with clip detection; optionally write B if potDirty
+      let o = 0; let t = 0; let p = 0; let clipped = false;
+      const Suse = this.currentScale;
+      for (let px = 0; px < pixelCount; px++, t += 2, o += 4, p += 1) {
+        const r = psi[t] / Suse;
+        const im = psi[t + 1] / Suse;
+        if (r > 1.0 || r < -1.0 || im > 1.0 || im < -1.0) clipped = true;
         const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5));
         const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5));
-        out[o++] = (r01 * 255) | 0; // R = re
-        out[o++] = (i01 * 255) | 0; // G = im
-        out[o++] = 0;               // B
-        out[o++] = 255;             // A
+        out[o]     = (r01 * 255) | 0; // R
+        out[o + 1] = (i01 * 255) | 0; // G
+        if (this.twoTextures) {
+          // leave B unused; A=255
+        } else if (potDirty) {
+          const v01 = Math.max(0, Math.min(1, V[p] * invMax));
+          out[o + 2] = (v01 * 255) | 0; // B = normalised potential
+        }
+        out[o + 3] = 255; // A
       }
-      this.psiTexture.subimage({ data: out, width: simW, height: simH });
 
-      // potential (normalise 0..1 → uint8)
-      const pout = this.potU8;
-      const V = state.potential;
-      o = 0;
-      const invMax = potentialMax > 0 ? (1.0 / potentialMax) : 0.0;
-      for (let i = 0; i < V.length; i++) {
-        const v01 = Math.max(0, Math.min(1, V[i] * invMax));
-        const b = (v01 * 255) | 0;
-        pout[o++] = b;   // R
-        pout[o++] = 0;   // G
-        pout[o++] = 0;   // B
-        pout[o++] = 255; // A
+      if (clipped && !scannedThisFrame) {
+        // immediate rescan to avoid clipping this frame
+        let S = 0.0;
+        for (let i = 0; i < psi.length; i += 2) {
+          const ar = Math.abs(psi[i]);
+          const ai = Math.abs(psi[i + 1]);
+          if (ar > S) S = ar;
+          if (ai > S) S = ai;
+        }
+        if (!Number.isFinite(S) || S < 1e-12) S = 1.0;
+        const smoothed = this.scaleSmoothAlpha * this.currentScale + (1.0 - this.scaleSmoothAlpha) * S;
+        this.currentScale = Math.max(smoothed, S);
+
+        // repack with new scale
+        o = 0; t = 0; p = 0;
+        const Suse2 = this.currentScale;
+        for (let px = 0; px < pixelCount; px++, t += 2, o += 4, p += 1) {
+          const r = psi[t] / Suse2;
+          const im = psi[t + 1] / Suse2;
+          const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5));
+          const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5));
+          out[o]     = (r01 * 255) | 0;
+          out[o + 1] = (i01 * 255) | 0;
+          if (!this.twoTextures && potDirty) {
+            const v01 = Math.max(0, Math.min(1, V[p] * invMax));
+            out[o + 2] = (v01 * 255) | 0;
+          }
+          out[o + 3] = 255;
+        }
       }
-      this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
+
+      const t1 = (typeof performance !== 'undefined' ? performance.now() : 0);
+      this.psiTexture.subimage({ data: out, width: simW, height: simH });
+      let uploads = 1;
+
+      if (this.twoTextures) {
+        // old path: pack potential separately (always, to mirror old behavior)
+        const pout = this.potU8;
+        let qo = 0;
+        for (let i = 0; i < state.potential.length; i++) {
+          const v01 = Math.max(0, Math.min(1, state.potential[i] * invMax));
+          const b = (v01 * 255) | 0;
+          pout[qo++] = b;   // R
+          pout[qo++] = 0;   // G
+          pout[qo++] = 0;   // B
+          pout[qo++] = 255; // A
+        }
+        this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
+        uploads = 2;
+      }
+
+      const t2 = (typeof performance !== 'undefined' ? performance.now() : 0);
+
+      // clear + draw
+      this.regl.clear({ color: [0, 0, 0, 1], depth: 1 });
+      const t3 = (typeof performance !== 'undefined' ? performance.now() : 0);
+      this.drawCommand({
+        psi: this.psiTexture,
+        pot: this.twoTextures ? this.potentialTexture : undefined,
+        brightness: state.params.brightness,
+        magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.0),
+        uScale: this.currentScale,
+        uint8Mode: 1,
+      });
+      const t4 = (typeof performance !== 'undefined' ? performance.now() : 0);
+
+      // update versions and stats
+      if (!this.twoTextures && potDirty) {
+        this.lastPotentialVersion = state.potentialVersion;
+        this.lastBarrierEnergy = barrierEnergy;
+        this.needPotInit = false;
+      }
+      this.frameCounter++;
+      if (DEBUG) {
+        const packMs = t1 - t0;
+        const uploadMs = t2 - t1;
+        const drawMs = t4 - t3;
+        const bytes = pixelCount * this.bytesPerPixel * uploads;
+        // per-frame debug
+        // eslint-disable-next-line no-console
+        console.debug(`[Renderer] pack=${packMs.toFixed(2)}ms upload=${uploadMs.toFixed(2)}ms draw=${drawMs.toFixed(2)}ms bytes=${(bytes/1e6).toFixed(3)}MB uploads=${uploads}`);
+        // accumulate
+        this.debugStats.frames += 1;
+        this.debugStats.packMs += packMs;
+        this.debugStats.uploadMs += uploadMs;
+        this.debugStats.drawMs += drawMs;
+        this.debugStats.bytesUploaded += bytes;
+        const now = t4;
+        if (now - this.debugStats.lastSummaryTime >= 1000) {
+          const f = this.debugStats.frames || 1;
+          const avgPack = this.debugStats.packMs / f;
+          const avgUpload = this.debugStats.uploadMs / f;
+          const avgDraw = this.debugStats.drawMs / f;
+          const avgBytes = this.debugStats.bytesUploaded / f;
+          // eslint-disable-next-line no-console
+          console.log(`[Renderer Σ1s] N=${f} avg(pack=${avgPack.toFixed(2)}ms, upload=${avgUpload.toFixed(2)}ms, draw=${avgDraw.toFixed(2)}ms) avgBytes=${(avgBytes/1e6).toFixed(3)}MB type=${this.textureType} twoTex=${this.twoTextures} grid=${simW}x${simH}`);
+          this.debugStats.lastSummaryTime = now;
+          this.debugStats.frames = this.debugStats.packMs = this.debugStats.uploadMs = this.debugStats.drawMs = this.debugStats.bytesUploaded = 0;
+        }
+      }
     } else {
-      // float path: store ψ directly in RG (re, im), potential normalized in R
+      // float/half path: store ψ directly in rg; potential normalized in b (single texture) or separate texture
       const psi = state.psi;
       const out = this.psiF32;
-      let o = 0;
-      for (let i = 0; i < psi.length; i += 2) {
-        out[o++] = psi[i];       // R = re
-        out[o++] = psi[i + 1];   // G = im
-        out[o++] = 0.0;          // B
-        out[o++] = 1.0;          // A
-      }
-      this.psiTexture.subimage({ data: out, width: simW, height: simH });
-
       const V = state.potential;
-      const pout = this.potF32;
-      o = 0;
-      const invMax = potentialMax > 0 ? (1.0 / potentialMax) : 0.0;
-      for (let i = 0; i < V.length; i++) {
-        pout[o++] = Math.max(0, Math.min(1, V[i] * invMax)); // R = normalised potential
-        pout[o++] = 0.0;
-        pout[o++] = 0.0;
-        pout[o++] = 1.0;
-      }
-      this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
-    }
 
-    // clear + draw
-    this.regl.clear({ color: [0, 0, 0, 1], depth: 1 });
-    this.drawCommand({
-      psi: this.psiTexture,
-      pot: this.potentialTexture,
-      brightness: state.params.brightness,
-      magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.0),
-      uScale: this.uint8Mode ? this.currentScale : 1.0,
-      uint8Mode: this.uint8Mode ? 1 : 0,
-    });
+      let o = 0, t = 0, p = 0;
+      if (this.twoTextures) {
+        // single pass for ψ only; potential packed separately below
+        for (let px = 0; px < pixelCount; px++, t += 2, o += 4) {
+          out[o]     = psi[t];     // R = re
+          out[o + 1] = psi[t + 1]; // G = im
+          // leave B unchanged
+          out[o + 3] = 1.0;        // A
+        }
+      } else {
+        // single pass: pack ψ and, if needed, potential into B
+        for (let px = 0; px < pixelCount; px++, t += 2, p += 1, o += 4) {
+          out[o]     = psi[t];
+          out[o + 1] = psi[t + 1];
+          if (potDirty) {
+            const v01 = Math.max(0, Math.min(1, V[p] * invMax));
+            out[o + 2] = v01;      // B = normalised potential
+          }
+          out[o + 3] = 1.0;
+        }
+      }
+
+      const t1 = (typeof performance !== 'undefined' ? performance.now() : 0);
+      this.psiTexture.subimage({ data: out, width: simW, height: simH });
+      let uploads = 1;
+      if (this.twoTextures) {
+        const pout = this.potF32;
+        let qo = 0;
+        for (let i = 0; i < state.potential.length; i++) {
+          pout[qo++] = Math.max(0, Math.min(1, state.potential[i] * invMax));
+          pout[qo++] = 0.0;
+          pout[qo++] = 0.0;
+          pout[qo++] = 1.0;
+        }
+        this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
+        uploads = 2;
+      }
+      const t2 = (typeof performance !== 'undefined' ? performance.now() : 0);
+
+      // clear + draw
+      this.regl.clear({ color: [0, 0, 0, 1], depth: 1 });
+      const t3 = (typeof performance !== 'undefined' ? performance.now() : 0);
+      this.drawCommand({
+        psi: this.psiTexture,
+        pot: this.twoTextures ? this.potentialTexture : undefined,
+        brightness: state.params.brightness,
+        magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.0),
+        uScale: 1.0,
+        uint8Mode: 0,
+      });
+      const t4 = (typeof performance !== 'undefined' ? performance.now() : 0);
+
+      if (!this.twoTextures && potDirty) {
+        this.lastPotentialVersion = state.potentialVersion;
+        this.lastBarrierEnergy = barrierEnergy;
+        this.needPotInit = false;
+      }
+      this.frameCounter++;
+      if (DEBUG) {
+        const packMs = t1 - t0;
+        const uploadMs = t2 - t1;
+        const drawMs = t4 - t3;
+        const bytes = pixelCount * this.bytesPerPixel * uploads;
+        // eslint-disable-next-line no-console
+        console.debug(`[Renderer] pack=${packMs.toFixed(2)}ms upload=${uploadMs.toFixed(2)}ms draw=${drawMs.toFixed(2)}ms bytes=${(bytes/1e6).toFixed(3)}MB uploads=${uploads}`);
+        this.debugStats.frames += 1;
+        this.debugStats.packMs += packMs;
+        this.debugStats.uploadMs += uploadMs;
+        this.debugStats.drawMs += drawMs;
+        this.debugStats.bytesUploaded += bytes;
+        const now = t4;
+        if (now - this.debugStats.lastSummaryTime >= 1000) {
+          const f = this.debugStats.frames || 1;
+          const avgPack = this.debugStats.packMs / f;
+          const avgUpload = this.debugStats.uploadMs / f;
+          const avgDraw = this.debugStats.drawMs / f;
+          const avgBytes = this.debugStats.bytesUploaded / f;
+          // eslint-disable-next-line no-console
+          console.log(`[Renderer Σ1s] N=${f} avg(pack=${avgPack.toFixed(2)}ms, upload=${avgUpload.toFixed(2)}ms, draw=${avgDraw.toFixed(2)}ms) avgBytes=${(avgBytes/1e6).toFixed(3)}MB type=${this.textureType} twoTex=${this.twoTextures} grid=${simW}x${simH}`);
+          this.debugStats.lastSummaryTime = now;
+          this.debugStats.frames = this.debugStats.packMs = this.debugStats.uploadMs = this.debugStats.drawMs = this.debugStats.bytesUploaded = 0;
+        }
+      }
+    }
   }
 }

@@ -6,6 +6,9 @@ import * as C from './constants.js';
 
 // DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
 const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+// simulated time per rendered frame = STEPS_PER_FRAME * dt
+// increase for faster apparent motion while keeping dt small for accuracy
+const STEPS_PER_FRAME = 8; // try 4–16
 
 const canvas = document.getElementById('sim-canvas');
 if (!canvas) {
@@ -234,8 +237,16 @@ function _scheduleNextFrame() {
  */
 function gameLoop() {
     const frameStart = performance.now();
-    
-    _handleComputationPhase();
+
+    // step physics multiple times per rendered frame for faster apparent motion
+    for (let s = 0; s < STEPS_PER_FRAME; s++) {
+        if (_shouldSkipComputation()) break; // don't consume multiple skip tokens in one frame
+        const error = _executeComputationStep();
+        if (error) {
+            _logAndDegradeOnComputationError(error);
+            break; // if we degraded, stop stepping this frame
+        }
+    }
     _handleRenderingPhase();
     _monitorPerformance(frameStart);
     _scheduleNextFrame();

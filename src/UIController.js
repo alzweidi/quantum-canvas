@@ -136,9 +136,9 @@ export class UIController {
         this._setupSlider('brightness-slider', 'brightness-value', (val) => this.state.params.brightness = parseFloat(val));
         this._setupSlider('dt-slider', 'dt-value', (val) => this.state.params.dt = parseFloat(val), 3);
         this._setupSlider('barrier-strength-slider', 'barrier-strength-value', (val) => this.state.params.barrierEnergy = parseFloat(val), 1);
-        this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseInt(val, 10));
-        this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseInt(val, 10));
-        this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseInt(val, 10));
+        this._setupSlider('px-slider', 'px-value', (val) => this.state.params.px = parseFloat(val));
+        this._setupSlider('py-slider', 'py-value', (val) => this.state.params.py = parseFloat(val));
+        this._setupSlider('sigma-slider', 'sigma-value', (val) => this.state.params.sigma = parseFloat(val));
     }
 
     _setupInitialParamSliders() {
@@ -330,6 +330,10 @@ export class UIController {
                 }
             }
         }
+        // notify renderer that potential changed
+        if (typeof this.state.bumpPotentialVersion === 'function') {
+            this.state.bumpPotentialVersion();
+        }
     }
 
     /**
@@ -355,6 +359,10 @@ export class UIController {
             this.state.gridSize.height,
             this.state.params.barrierEnergy
         );
+        // notify renderer after preset draw updates potential
+        if (typeof this.state.bumpPotentialVersion === 'function') {
+            this.state.bumpPotentialVersion();
+        }
 
         // set optimal initial parameters for the experiment with grid-relative positioning
         const width = this.state.gridSize.width;

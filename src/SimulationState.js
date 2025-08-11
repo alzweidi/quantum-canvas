@@ -14,6 +14,7 @@ export class SimulationState {
         this.psi = new Float64Array(this.gridSize.width * this.gridSize.height * 2);
         this.potential = new Float64Array(this.gridSize.width * this.gridSize.height);
         this.kineticOperatorK = new Float64Array(this.gridSize.width * this.gridSize.height);
+        this.potentialVersion = 0;
 
         this._updateBoundaries();
         this._precalculateKineticOperator();
@@ -55,6 +56,16 @@ export class SimulationState {
         
         // apply the appropriate boundary type
         this._createReflectiveBoundary();
+        // signal that potential has changed so renderer can lazily repack
+        this.bumpPotentialVersion();
+    }
+
+    /**
+     * increments potential version to signal lazy repack to renderer
+     * @public
+     */
+    bumpPotentialVersion() {
+        this.potentialVersion = (this.potentialVersion + 1) | 0;
     }
 
     /**
