@@ -4,8 +4,12 @@
 
 **science is the grammar of nature; art is the accent we choose.** the constants and equations would be discovered by someone, sooner or later; beethoven’s ninth would not. quantum canvas lives in that seam; taking the schrödinger equation off the chalkboard and onto a stage of light, where interference writes and phase becomes color. what begins as numerics resolves into an experience: repeatable like an experiment, singular like a performance.
 
-
-
+ 
+ <p align="center">
+   <img src="captures-enhanced/theeye.jpg" alt="The Eye" width="720" />
+ </p>
+ 
+ 
 ## Features
 
 ### Real-time Quantum Simulation
@@ -50,6 +54,14 @@ python -m http.server
 ```
 
 then navigate to `http://localhost:8000` in your browser.
+
+## Acknowledgements
+
+1. **Once you take a capture, it may not look like the images you see throughout the repo since you will have to use something like Apple photo editer to enhance visiability since this is something i am still working on to have built in and specific to the engine**
+
+2. **The double slit experiment is not perfect since i am still working on it**
+
+3. **The absorber is not perfect since i am still working on it**
 
 ## Architecture
 
@@ -155,3 +167,14 @@ contributions are very welcome! any help to make it better is greatly appreciate
   <sub>Genesis II</sub>&nbsp;&nbsp;&nbsp;
   <sub>Genesis III</sub>
 </p>
+
+<p align="center">
+   <img src="captures-enhanced/alone.jpg" alt="Alone" width="260" />
+   <img src="captures-enhanced/coloured.jpg" alt="Coloured" width="260" />
+   <img src="captures-enhanced/blackwhite.jpg" alt="Black &amp; White" width="260" />
+ </p>
+ <p align="center">
+   <sub>Alone</sub>&nbsp;&nbsp;&nbsp;
+   <sub>Coloured</sub>&nbsp;&nbsp;&nbsp;
+   <sub>Black &amp; White</sub>
+ </p>
