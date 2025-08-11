@@ -1,4 +1,4 @@
-# Quantum Canvas Formula Sheet
+# Quantum Canvas Formula Sheet (NOT UPDATED)
 
 comprehensive mathematical reference for the 2D quantum wave function simulator
 
