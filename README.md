@@ -157,6 +157,8 @@ contributions are very welcome! any help to make it better is greatly appreciate
 
 ## Genesis Art Pieces
 
+- Pieces from Genesis are not lossless simulations of the quantum state, yet they look interesting and are relatively easy with paint with due to it's pixels, i have saved it on a seperate branch whilst the photos taken below Genesis are lossless however visiability effects were enhanced outside of the engine as i stated above in the repo.
+
 <p align="center">
   <img src="cool-captures/art1.png" alt="Genesis I" width="260" />
   <img src="cool-captures/art3.png" alt="Genesis II" width="260" />
