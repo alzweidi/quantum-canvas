@@ -1,332 +1,321 @@
-// DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
-const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+// renderer.js — physically faithful renderer for the quantum wave function
+// - uses float RGBA textures when supported; else uint8 + global scale (lossless phase, correct amplitude).
+// - textures are sized to the SIMULATION GRID (not DPR), letting the GPU upscale cleanly.
+// - no per-pixel normalisation: preserves |ψ| and phase so interference looks right.
 
-/**
- * renderer class - renders the quantum wave function to WebGL canvas
- * visualises complex wave function data as colorful patterns
- */
+const DEBUG =
+  new URLSearchParams(location.search).has('debug') ||
+  (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1');
+
 export class Renderer {
-    /**
-     * initialise the WebGL renderer with regl
-     * @param {HTMLCanvasElement} canvasElement - the canvas to render to
-     */
-    constructor(canvasElement) {
-        this.canvas = canvasElement;
-        this.regl = window.createREGL(canvasElement);
+  /**
+   * @param {HTMLCanvasElement} canvasElement
+   */
+  constructor(canvasElement) {
+    this.canvas = canvasElement;
 
-        // store backing store dimensions (DPR-aware)
-        this.backingStoreWidth = canvasElement.width;
-        this.backingStoreHeight = canvasElement.height;
-        
-        // diagnostic tracking for amplitude scaling
-        this.scalingDiagnostics = {
-            frameCount: 0,
-            lastWarningFrame: -1,
-            warningThreshold: 60 // warn once per second at 60fps
-        };
-        
-        if (DEBUG) {
-            console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
-        }
+    // ---- GL context (prefer WebGL2) ----
+    const gl2 = canvasElement.getContext('webgl2', { alpha: false, antialias: false }) || null;
+    const gl =
+      gl2 ||
+      canvasElement.getContext('webgl', { alpha: false, antialias: false }) ||
+      canvasElement.getContext('experimental-webgl', { alpha: false, antialias: false });
+    if (!gl) throw new Error('WebGL not available');
 
-        // create texture for wave function data using unsigned bytes
-        this.psiTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    this.gl = gl;
+    this.isWebGL2 = !!gl2;
 
-        // create texture for potential barriers
-        this.potentialTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    // precision check for fragment shader
+    const spf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+    this.hasHighp = !!spf && spf.precision > 0;
 
-        // pre-allocate texture data buffers for performance (using bytes) - DPR-aware size
-        this.textureDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
-        this.potentialDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
+    // float texture support (WebGL2 has it; WebGL1 via extension)
+    this.supportsFloatTex = this.isWebGL2 || !!gl.getExtension('OES_texture_float');
+    this.supportsFloatLinear = this.isWebGL2 || !!gl.getExtension('OES_texture_float_linear');
 
-        // create the main rendering command - WebGL compatible version
-        this.drawCommand = this.regl({
-            // vertex shader - sets up fullscreen quad
-            vert: `
-                precision mediump float;
-                attribute vec2 position;
-                varying vec2 uv;
-                void main() {
-                    uv = 0.5 * position + 0.5;
-                    gl_Position = vec4(position, 0, 1);
-                }
-            `,
+    // create regl on our context (ask for float extensions explicitly in WebGL1)
+    this.regl = window.createREGL({
+      gl,
+      extensions: this.isWebGL2 ? [] : ['OES_texture_float', 'OES_texture_float_linear'],
+    });
 
-            // fragment shader - simplified quantum wave function visualisation
-            frag: `
-                precision mediump float;
-                uniform sampler2D psiTexture;
-                uniform sampler2D potentialTexture;
-                uniform float u_brightness;
-                uniform float u_potentialMax;
-                uniform float u_magCutoff;
-                uniform vec2 u_textureSize;
-                varying vec2 uv;
+    // mode: true => uint8 fallback (with global scale); false => float textures
+    this.uint8Mode = !this.supportsFloatTex;
 
-                const float PI = 3.14159265359;
-                const float TWO_PI = 6.28318530718;
+    // current sim texture allocation
+    this.texW = 0;
+    this.texH = 0;
 
-                // Enhanced quantum color mapping
-                vec3 quantumColorMapping(float magnitude, float phase) {
-                    // Phase-based color mapping with improved perceptual uniformity
-                    float hue = phase / TWO_PI; // Normalize phase to [0,1]
-                    float saturation = clamp(magnitude * 2.0, 0.0, 1.0);
-                    float lightness = 0.3 + magnitude * 0.7;
-                    
-                    // HSL to RGB conversion
-                    vec3 hsl = vec3(hue, saturation, lightness);
-                    vec3 rgb = clamp(abs(mod(hsl.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
-                    return hsl.z + hsl.y * (rgb-0.5)*(1.0-abs(2.0*hsl.z-1.0));
-                }
+    // GPU resources
+    this.psiTexture = null;
+    this.potentialTexture = null;
 
-                // Simple glow effect using nearby samples
-                vec3 applyGlow(vec3 baseColor, float magnitude, vec2 uv) {
-                    vec2 texelSize = 1.0 / u_textureSize;
-                    vec3 glow = vec3(0.0);
-                    float glowStrength = magnitude * 0.5;
-                    
-                    // Sample nearby pixels for glow effect
-                    for (int x = -2; x <= 2; x++) {
-                        for (int y = -2; y <= 2; y++) {
-                            vec2 offset = vec2(float(x), float(y)) * texelSize;
-                            vec2 samplePsi = texture2D(psiTexture, uv + offset).rg * 2.0 - 1.0;
-                            float sampleMag = length(samplePsi);
-                            float distance = length(vec2(float(x), float(y)));
-                            float weight = exp(-distance * distance / 8.0) * sampleMag;
-                            glow += baseColor * weight;
-                        }
-                    }
-                    
-                    return baseColor + glow * glowStrength * 0.1;
-                }
+    // CPU staging buffers (allocated on first draw)
+    this.psiF32 = null;   // float path buffer (RGBA)
+    this.potF32 = null;
+    this.psiU8  = null;   // uint8 path buffer (RGBA)
+    this.potU8  = null;
 
-                // Phase contours for quantum visualization
-                vec3 applyPhaseContours(vec3 baseColor, float phase, float magnitude) {
-                    float contourInterval = PI / 4.0; // Contours every 45 degrees
-                    float normalizedPhase = mod(phase + PI, TWO_PI) / TWO_PI;
-                    float contourPhase = mod(normalizedPhase, contourInterval / TWO_PI);
-                    
-                    float contourWidth = 0.02;
-                    float contour = smoothstep(0.0, contourWidth, contourPhase) -
-                                   smoothstep(contourInterval / TWO_PI - contourWidth,
-                                            contourInterval / TWO_PI, contourPhase);
-                    
-                    float contourOpacity = 0.3 * smoothstep(0.1, 0.4, magnitude);
-                    vec3 contourColor = vec3(0.0, 0.0, 0.0);
-                    
-                    return mix(baseColor, contourColor, contour * contourOpacity);
-                }
+    // last computed global scale (uint8 mode only)
+    this.currentScale = 1.0;
 
-                // Potential barrier visualization
-                vec3 applyPotentialBarriers(vec3 baseColor, float potential) {
-                    if (potential > 0.01) {
-                        vec3 barrierColor = vec3(0.8, 0.1, 0.1); // Red barriers
-                        float barrierOpacity = clamp(potential / u_potentialMax, 0.0, 0.8);
-                        return mix(baseColor, barrierColor, barrierOpacity);
-                    }
-                    return baseColor;
-                }
+    // build draw command
+    this.drawCommand = this._makeDrawCommand();
 
-                // Enhanced magnitude scaling for better visibility
-                float enhanceMagnitude(float magnitude) {
-                    // Logarithmic scaling for small magnitudes
-                    if (magnitude < 0.1) {
-                        return pow(magnitude, 0.5) * 2.0;
-                    } else {
-                        return magnitude;
-                    }
-                }
+    if (DEBUG) {
+      console.log(
+        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | floatTex=${this.supportsFloatTex} | floatLinear=${this.supportsFloatLinear} | mode=${this.uint8Mode ? 'UINT8+scale' : 'FLOAT'}`
+      );
+    }
+  }
 
-                void main() {
-                    // Read and convert complex wave function
-                    vec2 texel = texture2D(psiTexture, uv).rg;
-                    vec2 psi = (texel * 2.0) - 1.0;
-                    
-                    float magnitude = length(psi);
-                    float phase = atan(psi.y, psi.x);
-                    
-                    // Read potential barrier
-                    float potential = texture2D(potentialTexture, uv).r * u_potentialMax;
-                    
-                    // Enhance small magnitudes for better visibility
-                    float enhancedMagnitude = enhanceMagnitude(magnitude);
-                    
-                    // Apply quantum color mapping
-                    vec3 baseColor = quantumColorMapping(enhancedMagnitude, phase);
-                    
-                    // Apply glow effect
-                    vec3 glowColor = applyGlow(baseColor, enhancedMagnitude, uv);
-                    
-                    // Apply phase contours
-                    vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
-                    
-                    // Filter out quantization noise: anything below u_magCutoff is background
-                    vec3 quantumColor;
-                    if (magnitude < u_magCutoff) {
-                        // background stays pure black
-                        quantumColor = vec3(0.0);
-                    } else {
-                        // visible wave—brightness scales contour color
-                        quantumColor = contourColor * u_brightness;
-                    }
-                    
-                    // overlay barriers at full strength
-                    vec3 finalColor = applyPotentialBarriers(quantumColor, potential);
-                    gl_FragColor = vec4(finalColor, 1.0);
-                }
-            `,
-
-            // attributes - fullscreen quad vertices
-            attributes: {
-                position: [
-                    [-1, -1], [1, -1], [-1, 1],
-                    [-1, 1], [1, -1], [1, 1]
-                ]
-            },
-
-            // uniforms - pass wave function and potential textures
-            uniforms: {
-                psiTexture: this.psiTexture,
-                potentialTexture: this.potentialTexture,
-                u_brightness: this.regl.prop('brightness'),
-                u_potentialMax: this.regl.prop('potentialMax'),
-                u_magCutoff: this.regl.prop('magCutoff'),
-                u_textureSize: this.regl.prop('textureSize')
-            },
-
-            // draw 6 vertices (2 triangles = fullscreen quad)
-            count: 6
-        });
+  // create / update textures and staging buffers for a given grid size
+  _ensureTextures(simW, simH) {
+    if (this.texW === simW && this.texH === simH && this.psiTexture && this.potentialTexture) {
+      return;
     }
 
-    /**
-     * render the current quantum state to the canvas
-     * @param {SimulationState} state - the simulation state to visualise
-     */
-    draw(state) {
-        // simulation grid size (rect-safe)
-        const simW = state.gridSize.width;
-        const simH = state.gridSize.height;
-        const scaleX = this.backingStoreWidth  / simW;
-        const scaleY = this.backingStoreHeight / simH;
-        
-        // diagnostic tracking for amplitude scaling warnings
-        this.scalingDiagnostics.frameCount++;
-        let scaledPixelCount = 0;
-        let maxAmplitudeFound = 0;
-        
-        // pack complex wave function data into rgba texture format with DPR scaling
-        // convert float values to 0-255 byte range for uint8 texture
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                let simX = Math.floor(backingX / scaleX);
-                let simY = Math.floor(backingY / scaleY);
-                // clamp to last valid cell to avoid OOB on the right/bottom edge
-                if (simX >= simW) simX = simW - 1;
-                if (simY >= simH) simY = simH - 1;
-                const simIdx = (simY * simW + simX) * 2; // interleaved complex index
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // convert float values to 0-255 range with adaptive scaling
-                const real = state.psi[simIdx];
-                const imag = state.psi[simIdx + 1];
-                
-                // per-pixel adaptive scaling to prevent silent clipping of |ψ| > 1 components
-                const maxComponent = Math.max(Math.abs(real), Math.abs(imag));
-                const scale = maxComponent > 1.0 ? 1.0 / maxComponent : 1.0;
-                
-                // track scaling diagnostics
-                if (scale < 1.0) {
-                    scaledPixelCount++;
-                    maxAmplitudeFound = Math.max(maxAmplitudeFound, maxComponent);
-                }
-                
-                // apply scaling while preserving phase information
-                const scaledReal = real * scale;
-                const scaledImag = imag * scale;
-                
-                // map from [-1, 1] to [0, 255] with offset for negative values
-                this.textureDataBuffer[backingIdx] = Math.floor((scaledReal + 1.0) * 127.5);     // real -> r
-                this.textureDataBuffer[backingIdx + 1] = Math.floor((scaledImag + 1.0) * 127.5); // imag -> g
-                this.textureDataBuffer[backingIdx + 2] = 0;                                // blue
-                this.textureDataBuffer[backingIdx + 3] = 255;                              // alpha
-            }
-        }
-        
-        // emit diagnostic warning if significant scaling occurred
-        const totalPixels = this.backingStoreWidth * this.backingStoreHeight;
-        const scalingPercentage = (scaledPixelCount / totalPixels) * 100;
-        
-        if (DEBUG && scaledPixelCount > 0 &&
-            this.scalingDiagnostics.frameCount - this.scalingDiagnostics.lastWarningFrame >= this.scalingDiagnostics.warningThreshold) {
-            console.warn(`[QUANTUM AMPLITUDE SCALING] Frame ${this.scalingDiagnostics.frameCount}: ` +
-                        `${scaledPixelCount} pixels (${scalingPercentage.toFixed(2)}%) required amplitude scaling. ` +
-                        `Max component found: ${maxAmplitudeFound.toFixed(4)} (exceeds [-1,1] texture range). ` +
-                        `Phase information preserved via adaptive scaling.`);
-            this.scalingDiagnostics.lastWarningFrame = this.scalingDiagnostics.frameCount;
-        }
+    this.texW = simW;
+    this.texH = simH;
 
-        // define potential scaling from barrier energy (default 300.0)
-        const potentialMax = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
-        const potentialToByte = 255 / potentialMax;
+    // release old textures if any
+    if (this.psiTexture) this.psiTexture.destroy();
+    if (this.potentialTexture) this.potentialTexture.destroy();
 
-        // pack potential barrier data into rgba texture format with DPR scaling
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                let simX = Math.floor(backingX / scaleX);
-                let simY = Math.floor(backingY / scaleY);
-                // clamp to last valid cell to avoid OOB on the right/bottom edge
-                if (simX >= simW) simX = simW - 1;
-                if (simY >= simH) simY = simH - 1;
-                const simIdxScalar = (simY * simW + simX);
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // normalise potential using dynamic scaling based on potentialMax
-                const normalizedPotential = Math.max(
-                    0,
-                    Math.min(255, Math.floor(state.potential[simIdxScalar] * potentialToByte))
-                );
-                
-                this.potentialDataBuffer[backingIdx] = normalizedPotential;     // potential -> r
-                this.potentialDataBuffer[backingIdx + 1] = 0;                   // green
-                this.potentialDataBuffer[backingIdx + 2] = 0;                   // blue
-                this.potentialDataBuffer[backingIdx + 3] = 255;                 // alpha
-            }
-        }
+    const filtering = this.supportsFloatLinear ? 'linear' : 'nearest';
 
-        // upload texture data to GPU
-        this.psiTexture.subimage(this.textureDataBuffer);
-        this.potentialTexture.subimage(this.potentialDataBuffer);
+    if (this.uint8Mode) {
+      // ----- UINT8 TEXTURES (normalised upload) -----
+      this.psiTexture = this.regl.texture({
+        width: simW, height: simH,
+        format: 'rgba', type: 'uint8',
+        mag: 'linear', min: 'linear', wrapS: 'clamp', wrapT: 'clamp',
+        data: null,
+      });
+      this.potentialTexture = this.regl.texture({
+        width: simW, height: simH,
+        format: 'rgba', type: 'uint8',
+        mag: 'linear', min: 'linear', wrapS: 'clamp', wrapT: 'clamp',
+        data: null,
+      });
 
-        // clear canvas and render
-        this.regl.clear({
-            color: [0, 0, 0, 1],
-            depth: 1
-        });
-// execute the draw command with brightness parameter and current texture size
-        this.drawCommand({
-            brightness: state.params.brightness,
-            textureSize: [this.backingStoreWidth, this.backingStoreHeight],
-            potentialMax: (state.params.barrierEnergy > 0 ? state.params.barrierEnergy : 300.0),
-            magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.01)
-        });
+      this.psiU8 = new Uint8Array(simW * simH * 4);
+      this.potU8 = new Uint8Array(simW * simH * 4);
+      this.psiF32 = this.potF32 = null; // free
+    } else {
+      // ----- FLOAT TEXTURES (RGBA32F) -----
+      this.psiTexture = this.regl.texture({
+        width: simW, height: simH,
+        format: 'rgba', type: 'float',
+        mag: filtering, min: filtering, wrapS: 'clamp', wrapT: 'clamp',
+        data: null,
+      });
+      this.potentialTexture = this.regl.texture({
+        width: simW, height: simH,
+        format: 'rgba', type: 'float',
+        mag: filtering, min: filtering, wrapS: 'clamp', wrapT: 'clamp',
+        data: null,
+      });
+
+      this.psiF32 = new Float32Array(simW * simH * 4);
+      this.potF32 = new Float32Array(simW * simH * 4);
+      this.psiU8 = this.potU8 = null; // free
     }
+
+    if (DEBUG) {
+      console.log(`[Renderer] Allocated textures ${simW}×${simH} (mode: ${this.uint8Mode ? 'uint8' : 'float'})`);
+    }
+  }
+
+  _makeDrawCommand() {
+    const precision = this.hasHighp ? 'highp' : 'mediump';
+
+    const vert = `
+      precision ${precision} float;
+      attribute vec2 position;
+      varying vec2 vUv;
+      void main() {
+        vUv = 0.5 * position + 0.5;
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
+    `;
+
+    // domain-coloring: hue = phase, brightness ~ sqrt(|ψ|)
+    // uint8 fallback reconstructs ψ via uniform u_scale (global).
+    const frag = `
+      precision ${precision} float;
+      varying vec2 vUv;
+
+      uniform sampler2D psiTexture;
+      uniform sampler2D potentialTexture;
+
+      uniform float u_brightness;
+      uniform float u_magCutoff;
+      uniform float u_scale;     // uint8 mode only (global amplitude scale)
+      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float
+
+      const float PI = 3.141592653589793;
+      const float TAU = 6.283185307179586;
+
+      vec3 hsv2rgb(vec3 c) {
+        // from Inigo Quilez
+        vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        return c.z * mix(vec3(1.0), rgb, c.y);
+      }
+
+      void main() {
+        vec4 t = texture2D(psiTexture, vUv);
+        vec2 psi;
+        if (u_uint8Mode == 1) {
+          // t.rg in [0,1] → [-1,1] → multiply global scale
+          psi = (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12);
+        } else {
+          // float path: stored as raw re,im in RG
+          psi = t.rg;
+        }
+
+        float mag = length(psi);              // |ψ|
+        if (mag < u_magCutoff) {
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+          return;
+        }
+
+        float phase = atan(psi.y, psi.x);     // [-π, π]
+        float hue   = fract((phase + PI) / TAU); // [0,1]
+        // perceptual brightness: use sqrt(|ψ|) and external brightness
+        float amp   = sqrt(mag) * u_brightness;
+
+        // base color: full saturation, value=1, then scale by amp
+        vec3 base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+
+        // subtle phase contours (K lines per 2π)
+        float K = 24.0;
+        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
+        float contour = smoothstep(0.48, 0.5, f); // thin dark lines
+        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+
+        // Potential overlay (normalized 0..1 in texture R)
+        float pot = texture2D(potentialTexture, vUv).r;
+        // Slightly quadratic opacity to emphasize higher barriers
+        float potAlpha = 0.6 * pot * pot;
+        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        vec3 color = mix(base, barrier, potAlpha);
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `;
+
+    return this.regl({
+      vert,
+      frag,
+      attributes: {
+        position: [
+          [-1, -1], [ 1, -1], [-1,  1],
+          [-1,  1], [ 1, -1], [ 1,  1],
+        ],
+      },
+      uniforms: {
+        psiTexture: this.regl.prop('psi'),
+        potentialTexture: this.regl.prop('pot'),
+        u_brightness: this.regl.prop('brightness'),
+        u_magCutoff: this.regl.prop('magCutoff'),
+        u_scale: this.regl.prop('uScale'),
+        u_uint8Mode: this.regl.prop('uint8Mode'),
+      },
+      count: 6,
+    });
+  }
+
+  /**
+   * render the current quantum state
+   * @param {SimulationState} state
+   */
+  draw(state) {
+    const simW = state.gridSize.width;
+    const simH = state.gridSize.height;
+    this._ensureTextures(simW, simH);
+
+    // potential normalisation base (kept same as your code path)
+    const potentialMax = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
+
+    if (this.uint8Mode) {
+      // ---- pass 1: find global amplitude scale S = max(|re_i|, |im_i|) ----
+      const psi = state.psi;
+      let S = 0.0;
+      for (let i = 0; i < psi.length; i += 2) {
+        const ar = Math.abs(psi[i]);
+        const ai = Math.abs(psi[i + 1]);
+        if (ar > S) S = ar;
+        if (ai > S) S = ai;
+      }
+      if (!Number.isFinite(S) || S < 1e-12) S = 1.0;
+      this.currentScale = S;
+
+      // ---- pass 2: pack ψ to RG (uint8), normalized by S (lossless phase; amp restored in shader) ----
+      const out = this.psiU8;
+      let o = 0;
+      for (let i = 0; i < psi.length; i += 2) {
+        const r = psi[i] / S;       // [-?, ?] → typically small
+        const im = psi[i + 1] / S;
+        // map [-1,1] → [0,255]
+        const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5));
+        const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5));
+        out[o++] = (r01 * 255) | 0; // R = re
+        out[o++] = (i01 * 255) | 0; // G = im
+        out[o++] = 0;               // B
+        out[o++] = 255;             // A
+      }
+      this.psiTexture.subimage({ data: out, width: simW, height: simH });
+
+      // potential (normalise 0..1 → uint8)
+      const pout = this.potU8;
+      const V = state.potential;
+      o = 0;
+      const invMax = potentialMax > 0 ? (1.0 / potentialMax) : 0.0;
+      for (let i = 0; i < V.length; i++) {
+        const v01 = Math.max(0, Math.min(1, V[i] * invMax));
+        const b = (v01 * 255) | 0;
+        pout[o++] = b;   // R
+        pout[o++] = 0;   // G
+        pout[o++] = 0;   // B
+        pout[o++] = 255; // A
+      }
+      this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
+    } else {
+      // float path: store ψ directly in RG (re, im), potential normalized in R
+      const psi = state.psi;
+      const out = this.psiF32;
+      let o = 0;
+      for (let i = 0; i < psi.length; i += 2) {
+        out[o++] = psi[i];       // R = re
+        out[o++] = psi[i + 1];   // G = im
+        out[o++] = 0.0;          // B
+        out[o++] = 1.0;          // A
+      }
+      this.psiTexture.subimage({ data: out, width: simW, height: simH });
+
+      const V = state.potential;
+      const pout = this.potF32;
+      o = 0;
+      const invMax = potentialMax > 0 ? (1.0 / potentialMax) : 0.0;
+      for (let i = 0; i < V.length; i++) {
+        pout[o++] = Math.max(0, Math.min(1, V[i] * invMax)); // R = normalised potential
+        pout[o++] = 0.0;
+        pout[o++] = 0.0;
+        pout[o++] = 1.0;
+      }
+      this.potentialTexture.subimage({ data: pout, width: simW, height: simH });
+    }
+
+    // clear + draw
+    this.regl.clear({ color: [0, 0, 0, 1], depth: 1 });
+    this.drawCommand({
+      psi: this.psiTexture,
+      pot: this.potentialTexture,
+      brightness: state.params.brightness,
+      magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.0),
+      uScale: this.uint8Mode ? this.currentScale : 1.0,
+      uint8Mode: this.uint8Mode ? 1 : 0,
+    });
+  }
 }
