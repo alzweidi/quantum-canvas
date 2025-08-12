@@ -1,5 +1,5 @@
 // renderer.js — physically faithful renderer for the quantum wave function
-// - uses float rgba textures when supported; else uint8 + global scale (lossless phase, correct amplitude).
+// - uses uint8 RGBA textures for wave function representation (lossless phase, correct amplitude).
 // - textures are sized to the simulation grid (not dpr), letting the gpu upscale cleanly.
 // - no per-pixel normalization: preserves |ψ| and phase so interference looks right.
 
