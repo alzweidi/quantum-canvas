@@ -41,20 +41,21 @@ the project follows a modular ES6 architecture, separating concerns into distinc
 
 ### Module Responsibilities
 
-| File | Responsibility |
-|------|----------------|
-| [`main.js`](src/main.js) | application core: Initialises all modules, runs the main animation loop, and manages error handling, resource conservation, and the debugging interface. |
-| [`SimulationState.js`](src/SimulationState.js) | data model: Contains the canonical state of the simulation, including the wave function (psi), potential fields, and all configurable physical parameters. |
-| [`ComputationEngine.js`](src/ComputationEngine.js) | physics engine: Implements the split-step fourier method to evolve the wave function over time. |
-| [`Renderer.js`](src/Renderer.js) | visualisation: manages all WebGL rendering, including the GLSL shaders that visualise the quantum state and potential fields. |
-| [`UIController.js`](src/UIController.js) | user interaction: handles all input from the mouse and UI panel, translating user actions into state changes. |
-| [`presets.js`](src/presets.js) | experiment definitions: contains data and logic for setting up classic experiments like the double slit, with adaptive geometry. |
-| [`constants.js`](src/constants.js) | configuration: stores fundamental physical constants and default simulation parameters. |
-| [`fft.js`](src/fft.js) | mathematics: provides a highly optimised, in-place Fast Fourier Transform and its inverse. |
-| [`index.html`](index.html) | application shell: defines the DOM structure for the canvas and the UI control panel. |
-| [`style.css`](src/style.css) | design system: implements the modern, GitHub-inspired dark theme and responsive layout for the UI. |
+| File                                               | Responsibility                                                                                                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`main.js`](src/main.js)                           | application core: Initialises all modules, runs the main animation loop, and manages error handling, resource conservation, and the debugging interface.   |
+| [`SimulationState.js`](src/SimulationState.js)     | data model: Contains the canonical state of the simulation, including the wave function (psi), potential fields, and all configurable physical parameters. |
+| [`ComputationEngine.js`](src/ComputationEngine.js) | physics engine: Implements the split-step fourier method to evolve the wave function over time.                                                            |
+| [`Renderer.js`](src/Renderer.js)                   | visualisation: manages all WebGL rendering, including the GLSL shaders that visualise the quantum state and potential fields.                              |
+| [`UIController.js`](src/UIController.js)           | user interaction: handles all input from the mouse and UI panel, translating user actions into state changes.                                              |
+| [`presets.js`](src/presets.js)                     | experiment definitions: contains data and logic for setting up classic experiments like the double slit, with adaptive geometry.                           |
+| [`constants.js`](src/constants.js)                 | configuration: stores fundamental physical constants and default simulation parameters.                                                                    |
+| [`fft.js`](src/fft.js)                             | mathematics: provides a highly optimised, in-place Fast Fourier Transform and its inverse.                                                                 |
+| [`index.html`](index.html)                         | application shell: defines the DOM structure for the canvas and the UI control panel.                                                                      |
+| [`style.css`](src/style.css)                       | design system: implements the modern, GitHub-inspired dark theme and responsive layout for the UI.                                                         |
 
 ### Project File Structure
+
 ```
 quantum-canvas/
 ├── index.html
@@ -82,12 +83,12 @@ the core of the application is the [`gameLoop()`](src/main.js:228), which is des
 
 ```javascript
 function gameLoop() {
-    const frameStart = performance.now();
-    
-    _handleComputationPhase();
-    _handleRenderingPhase();
-    _monitorPerformance(frameStart);
-    _scheduleNextFrame();
+  const frameStart = performance.now();
+
+  _handleComputationPhase();
+  _handleRenderingPhase();
+  _monitorPerformance(frameStart);
+  _scheduleNextFrame();
 }
 ```
 
@@ -115,14 +116,20 @@ canvas.width = backingStoreWidth;
 canvas.height = backingStoreHeight;
 
 // validate against WebGL texture limits
-const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+const gl =
+  canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
 if (gl) {
-    const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    if (backingStoreWidth > maxTextureSize || backingStoreHeight > maxTextureSize) {
-        console.warn(`[DPR FIX] Backing store ${backingStoreWidth}x${backingStoreHeight} exceeds max texture size ${maxTextureSize}, falling back to base resolution`);
-        canvas.width = C.GRID_SIZE;
-        canvas.height = C.GRID_SIZE;
-    }
+  const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  if (
+    backingStoreWidth > maxTextureSize ||
+    backingStoreHeight > maxTextureSize
+  ) {
+    console.warn(
+      `[DPR FIX] Backing store ${backingStoreWidth}x${backingStoreHeight} exceeds max texture size ${maxTextureSize}, falling back to base resolution`,
+    );
+    canvas.width = C.GRID_SIZE;
+    canvas.height = C.GRID_SIZE;
+  }
 }
 ```
 
@@ -136,12 +143,15 @@ all tunable physics and rendering parameters are stored in a centralised [`param
 
 ```javascript
 this.params = {
-    x0: C.INITIAL_X0, y0: C.INITIAL_Y0,
-    px: C.INITIAL_P_X, py: C.INITIAL_P_Y,
-    sigma: C.INITIAL_SIGMA,
-    dt: C.INITIAL_DT, brightness: 1.0,
-    boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
-    barrierEnergy: 300, // energy unit - now stored as energy rather than phase
+  x0: C.INITIAL_X0,
+  y0: C.INITIAL_Y0,
+  px: C.INITIAL_P_X,
+  py: C.INITIAL_P_Y,
+  sigma: C.INITIAL_SIGMA,
+  dt: C.INITIAL_DT,
+  brightness: 1.0,
+  boundaryMode: "reflective", // 'reflective', 'absorbing', 'both'
+  barrierEnergy: 300, // energy unit - now stored as energy rather than phase
 };
 ```
 
@@ -155,17 +165,20 @@ the state manages two primary types of boundary conditions, controlled by [`para
 
 ```javascript
 // From _applyAbsorbingBoundaries()
-if (this.params.boundaryMode === 'absorbing' || this.params.boundaryMode === 'both') {
-    // ...
-    if (minDist < boundaryWidth) {
-        // scale damping by dt to ensure time-step independence
-        // this represents a continuous absorption rate rather than discrete per-step damping
-        const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
-        const dampingFactor = Math.exp(-dampingRate * this.params.dt);
-        
-        this.psi[idx] *= dampingFactor;         // real part
-        this.psi[idx + 1] *= dampingFactor;     // imaginary part
-    }
+if (
+  this.params.boundaryMode === "absorbing" ||
+  this.params.boundaryMode === "both"
+) {
+  // ...
+  if (minDist < boundaryWidth) {
+    // scale damping by dt to ensure time-step independence
+    // this represents a continuous absorption rate rather than discrete per-step damping
+    const dampingRate = 0.1 * (boundaryWidth - minDist); // absorption rate per unit time
+    const dampingFactor = Math.exp(-dampingRate * this.params.dt);
+
+    this.psi[idx] *= dampingFactor; // real part
+    this.psi[idx + 1] *= dampingFactor; // imaginary part
+  }
 }
 ```
 
@@ -180,14 +193,14 @@ the [`step()`](src/ComputationEngine.js:58) method advances the simulation by on
 ```javascript
 step(state) {
     this._applyPotential(state);
-    
+
     // fixed a BUG: applied absorbing boundaries BEFORE kinetic evolution
     // which prevents wrap artefacts during FFT-based kinetic step in k-space
     state._applyAbsorbingBoundaries();
-    
+
     this._applyKinetic(state);
     this._applyPotential(state);
-    
+
     // keep post-step absorption for additional safety
     state._applyAbsorbingBoundaries();
 }
@@ -215,23 +228,23 @@ const scaleY = this.backingStoreHeight / simGridSize;
 // pack complex wave function data into rgba texture format with DPR scaling
 // convert float values to 0-255 byte range for uint8 texture
 for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-    for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-        // map backing store coordinates to simulation grid coordinates
-        const simX = Math.floor(backingX / scaleX);
-        const simY = Math.floor(backingY / scaleY);
-        const simIdx = (simY * simGridSize + simX) * 2; // complex array index
-        const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-        
-        // convert float values to 0-255 range
-        // map from [-1, 1] to [0, 255] with offset for negative values
-        const real = state.psi[simIdx];
-        const imag = state.psi[simIdx + 1];
-        
-        this.textureDataBuffer[backingIdx] = Math.floor((real + 1.0) * 127.5);     // real -> r
-        this.textureDataBuffer[backingIdx + 1] = Math.floor((imag + 1.0) * 127.5); // imag -> g
-        this.textureDataBuffer[backingIdx + 2] = 0;                                // blue
-        this.textureDataBuffer[backingIdx + 3] = 255;                              // alpha
-    }
+  for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
+    // map backing store coordinates to simulation grid coordinates
+    const simX = Math.floor(backingX / scaleX);
+    const simY = Math.floor(backingY / scaleY);
+    const simIdx = (simY * simGridSize + simX) * 2; // complex array index
+    const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
+
+    // convert float values to 0-255 range
+    // map from [-1, 1] to [0, 255] with offset for negative values
+    const real = state.psi[simIdx];
+    const imag = state.psi[simIdx + 1];
+
+    this.textureDataBuffer[backingIdx] = Math.floor((real + 1.0) * 127.5); // real -> r
+    this.textureDataBuffer[backingIdx + 1] = Math.floor((imag + 1.0) * 127.5); // imag -> g
+    this.textureDataBuffer[backingIdx + 2] = 0; // blue
+    this.textureDataBuffer[backingIdx + 3] = 255; // alpha
+  }
 }
 // ... (similar loop for potentialDataBuffer) ...
 this.psiTexture.subimage(this.textureDataBuffer);
@@ -260,7 +273,7 @@ vec3 quantumColorMapping(float magnitude, float phase) {
     float hue = phase / TWO_PI; // Normalise phase to [0,1]
     float saturation = clamp(magnitude * 2.0, 0.0, 1.0);
     float lightness = 0.3 + magnitude * 0.7;
-    
+
     // HSL to RGB conversion
     vec3 hsl = vec3(hue, saturation, lightness);
     vec3 rgb = clamp(abs(mod(hsl.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
@@ -272,7 +285,7 @@ vec3 applyGlow(vec3 baseColor, float magnitude, vec2 uv) {
     vec2 texelSize = 1.0 / u_textureSize;
     vec3 glow = vec3(0.0);
     float glowStrength = magnitude * 0.5;
-    
+
     // Sample nearby pixels for glow effect
     for (int x = -2; x <= 2; x++) {
         for (int y = -2; y <= 2; y++) {
@@ -284,7 +297,7 @@ vec3 applyGlow(vec3 baseColor, float magnitude, vec2 uv) {
             glow += baseColor * weight;
         }
     }
-    
+
     return baseColor + glow * glowStrength * 0.1;
 }
 
@@ -293,15 +306,15 @@ vec3 applyPhaseContours(vec3 baseColor, float phase, float magnitude) {
     float contourInterval = PI / 4.0; // Contours every 45 degrees
     float normalizedPhase = mod(phase + PI, TWO_PI) / TWO_PI;
     float contourPhase = mod(normalizedPhase, contourInterval / TWO_PI);
-    
+
     float contourWidth = 0.02;
     float contour = smoothstep(0.0, contourWidth, contourPhase) -
                    smoothstep(contourInterval / TWO_PI - contourWidth,
                             contourInterval / TWO_PI, contourPhase);
-    
+
     float contourOpacity = 0.3 * smoothstep(0.1, 0.4, magnitude);
     vec3 contourColor = vec3(0.0, 0.0, 0.0);
-    
+
     return mix(baseColor, contourColor, contour * contourOpacity);
 }
 
@@ -329,25 +342,25 @@ void main() {
     // Read and convert complex wave function
     vec2 texel = texture2D(psiTexture, uv).rg;
     vec2 psi = (texel * 2.0) - 1.0;
-    
+
     float magnitude = length(psi);
     float phase = atan(psi.y, psi.x);
-    
+
     // Read potential barrier
     float potential = texture2D(potentialTexture, uv).r * 100.0; // Denormalise
-    
+
     // Enhance small magnitudes for better visibility
     float enhancedMagnitude = enhanceMagnitude(magnitude);
-    
+
     // Apply quantum colour mapping
     vec3 baseColor = quantumColorMapping(enhancedMagnitude, phase);
-    
+
     // Apply glow effect
     vec3 glowColor = applyGlow(baseColor, enhancedMagnitude, uv);
-    
+
     // Apply phase contours
     vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
-    
+
     // Filter out low-magnitude quantisation noise to ensure the background remains pure black
     vec3 quantumColor;
     if (magnitude < 0.01) {
@@ -357,7 +370,7 @@ void main() {
         // visible wave—brightness scales contour colour
         quantumColor = contourColor * u_brightness;
     }
-    
+
     // overlay barriers at full strength
     vec3 finalColor = applyPotentialBarriers(quantumColor, potential);
     gl_FragColor = vec4(finalColor, 1.0);
@@ -394,12 +407,12 @@ _applyMomentumKick(deltaPx, deltaPy) {
             const idx = 2 * (y * width + x);
             const real = this.state.psi[idx];
             const imag = this.state.psi[idx + 1];
-            
+
             // calculate phase: (Δpx*x + Δpy*y)/ℏ
             const phase = (deltaPx * x + deltaPy * y) / hbar;
             const cosPhase = Math.cos(phase);
             const sinPhase = Math.sin(phase);
-            
+
             // complex multiplication: (real + i*imag) * (cos + i*sin)
             this.state.psi[idx] = real * cosPhase - imag * sinPhase;
             this.state.psi[idx + 1] = real * sinPhase + imag * cosPhase;
@@ -441,7 +454,9 @@ provides an in-place, power-of-2 Cooley-Tukey Fast Fourier Transform. it include
 // From fft()
 // validate that input size is a power of 2
 if (!Number.isInteger(Math.log2(n))) {
-    throw new Error(`FFT requires input size to be a power of 2, but got ${n}. Valid sizes: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, etc.`);
+  throw new Error(
+    `FFT requires input size to be a power of 2, but got ${n}. Valid sizes: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, etc.`,
+  );
 }
 
 // ... bit-reversal and Cooley-Tukey implementation ...
@@ -466,8 +481,10 @@ the application core in [`main.js`](src/main.js) features an extensive error han
 ```javascript
 // Example: Graceful Degradation from _logAndDegradeOnComputationError()
 if (consecutiveComputationErrors >= 5) {
-    skipComputationFrames = 60;
-    console.warn(`[DEGRADATION] Skipping computation for ${skipComputationFrames} frames due to repeated failures`);
+  skipComputationFrames = 60;
+  console.warn(
+    `[DEGRADATION] Skipping computation for ${skipComputationFrames} frames due to repeated failures`,
+  );
 }
 ```
 
@@ -483,15 +500,15 @@ if (consecutiveComputationErrors >= 5) {
 
 [`main.js`](src/main.js) exposes a suite of testing functions on the window object, allowing developers to test the robustness of the system directly from the browser console.
 
-| Function | Description |
-|----------|-------------|
-| `window.testComputationErrors(N)` | injects N consecutive computation errors to test error handling. |
-| `window.testRenderingErrors(N)` | injects N consecutive rendering errors. |
+| Function                              | Description                                                            |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `window.testComputationErrors(N)`     | injects N consecutive computation errors to test error handling.       |
+| `window.testRenderingErrors(N)`       | injects N consecutive rendering errors.                                |
 | `window.testComputationDegradation()` | injects 6 computation errors to trigger the graceful degradation mode. |
-| `window.testRenderingRecovery()` | injects 4 rendering errors to trigger the WebGL recovery attempt. |
-| `window.testStateCorruption()` | manually corrupts the wave function data with NaN to test detection. |
-| `window.getErrorStats()` | returns an object with the current error counts and system status. |
-| `window.resetErrorCounters()` | resets all error statistics for fresh testing. |
+| `window.testRenderingRecovery()`      | injects 4 rendering errors to trigger the WebGL recovery attempt.      |
+| `window.testStateCorruption()`        | manually corrupts the wave function data with NaN to test detection.   |
+| `window.getErrorStats()`              | returns an object with the current error counts and system status.     |
+| `window.resetErrorCounters()`         | resets all error statistics for fresh testing.                         |
 
 ## UI Design System & Layout
 
@@ -504,117 +521,227 @@ the HTML document provides the complete structure for the UI panel, including la
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Quantum Simulator</title>
-    <link rel="stylesheet" href="src/style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
     <canvas id="sim-canvas"></canvas>
     <div id="ui-panel">
-        <h3>Quantum Laboratory</h3>
-        
-        <div class="control-section">
-            <h4>Simulation Controls</h4>
-            <div class="control-group button-group">
-                <button id="pause-button" class="control-button">Pause</button>
-                <button id="reset-button" class="control-button">Reset Simulation</button>
-                <button id="clear-button" class="control-button">Clear Walls</button>
-            </div>
-            
-            <div class="control-group preset-group">
-                <label class="section-label">Experiment Presets</label>
-                <div class="preset-buttons">
-                    <button id="double-slit-button" class="preset-button">
-                        <span class="preset-name">Double Slit</span>
-                        <span class="preset-desc">Wave Interference</span>
-                    </button>
-                    <button id="tunneling-button" class="preset-button">
-                        <span class="preset-name">Tunneling Barrier</span>
-                        <span class="preset-desc">Quantum Tunneling</span>
-                    </button>
-                </div>
-            </div>
+      <h3>Quantum Laboratory</h3>
+
+      <div class="control-section">
+        <h4>Simulation Controls</h4>
+        <div class="control-group button-group">
+          <button id="pause-button" class="control-button">Pause</button>
+          <button id="reset-button" class="control-button">
+            Reset Simulation
+          </button>
+          <button id="clear-button" class="control-button">Clear Walls</button>
         </div>
 
-        <div class="control-section">
-            <h4>Mouse Interaction</h4>
-            <div class="control-group mouse-mode-group">
-                <div class="radio-group">
-                    <input type="radio" id="mode-draw" name="mouseMode" value="draw" checked>
-                    <label for="mode-draw">Draw/Erase</label>
-                    
-                    <input type="radio" id="mode-drag" name="mouseMode" value="drag">
-                    <label for="mode-drag">Drag Packet</label>
-                    
-                    <input type="radio" id="mode-nudge" name="mouseMode" value="nudge">
-                    <label for="mode-nudge">Nudge Packet</label>
-                </div>
-                <div class="mode-hint">
-                    <span id="mode-hint-text">Left-click: Draw barriers • Right-click: Erase</span>
-                </div>
-            </div>
+        <div class="control-group preset-group">
+          <label class="section-label">Experiment Presets</label>
+          <div class="preset-buttons">
+            <button id="double-slit-button" class="preset-button">
+              <span class="preset-name">Double Slit</span>
+              <span class="preset-desc">Wave Interference</span>
+            </button>
+            <button id="tunneling-button" class="preset-button">
+              <span class="preset-name">Tunneling Barrier</span>
+              <span class="preset-desc">Quantum Tunneling</span>
+            </button>
+          </div>
         </div>
+      </div>
 
-        <div class="control-section">
-            <h4>Boundary Physics</h4>
-            <div class="control-group boundary-mode-group">
-                <div class="radio-group">
-                    <input type="radio" id="boundary-reflective" name="boundaryMode" value="reflective" checked>
-                    <label for="boundary-reflective">Reflective Walls</label>
-                    
-                    <input type="radio" id="boundary-absorbing" name="boundaryMode" value="absorbing">
-                    <label for="boundary-absorbing">Absorbing Boundaries</label>
-                    
-                    <input type="radio" id="boundary-both" name="boundaryMode" value="both">
-                    <label for="boundary-both">Both (Demo Conflict)</label>
-                </div>
-                <div class="mode-hint">
-                    <span>Reflective: Waves bounce back • Absorbing: Waves fade at edges</span>
-                </div>
-            </div>
-        </div>
+      <div class="control-section">
+        <h4>Mouse Interaction</h4>
+        <div class="control-group mouse-mode-group">
+          <div class="radio-group">
+            <input
+              type="radio"
+              id="mode-draw"
+              name="mouseMode"
+              value="draw"
+              checked
+            />
+            <label for="mode-draw">Draw/Erase</label>
 
-        <div class="control-section">
-            <h4>Real-time Parameters</h4>
-            <div class="control-group">
-                <label for="brush-slider">Brush Size: <span id="brush-size-value" class="param-value">5</span></label>
-                <input type="range" min="1" max="25" value="5" id="brush-slider" class="param-slider">
-            </div>
-            <div class="control-group">
-                <label for="brightness-slider">Brightness: <span id="brightness-value" class="param-value">1.0</span></label>
-                <input type="range" min="0.1" max="5" value="1.0" step="0.1" id="brightness-slider" class="param-slider">
-            </div>
-            <div class="control-group">
-                <label for="dt-slider">Time Step (dt): <span id="dt-value" class="param-value">0.005</span></label>
-                <input type="range" min="0.001" max="0.02" value="0.005" step="0.001" id="dt-slider" class="param-slider">
-            </div>
-            <div class="control-group">
-                <label for="barrier-strength-slider">Barrier Strength: <span id="barrier-strength-value" class="param-value">1.5</span></label>
-                <input type="range" min="0.0" max="3.14" value="1.5" step="0.1" id="barrier-strength-slider" class="param-slider">
-            </div>
-        </div>
+            <input type="radio" id="mode-drag" name="mouseMode" value="drag" />
+            <label for="mode-drag">Drag Packet</label>
 
-        <div class="control-section initial-state-section">
-            <h4>Initial State <span class="reset-note">(Applied on Reset)</span></h4>
-            <div class="control-group">
-                <label for="px-slider">Momentum X: <span id="px-value" class="param-value">60</span></label>
-                <input type="range" min="-150" max="150" value="60" id="px-slider" class="initial-param-slider">
-            </div>
-            <div class="control-group">
-                <label for="py-slider">Momentum Y: <span id="py-value" class="param-value">0</span></label>
-                <input type="range" min="-150" max="150" value="0" id="py-slider" class="initial-param-slider">
-            </div>
-            <div class="control-group">
-                <label for="sigma-slider">Packet Width: <span id="sigma-value" class="param-value">15</span></label>
-                <input type="range" min="5" max="30" value="15" id="sigma-slider" class="initial-param-slider">
-            </div>
+            <input
+              type="radio"
+              id="mode-nudge"
+              name="mouseMode"
+              value="nudge"
+            />
+            <label for="mode-nudge">Nudge Packet</label>
+          </div>
+          <div class="mode-hint">
+            <span id="mode-hint-text"
+              >Left-click: Draw barriers • Right-click: Erase</span
+            >
+          </div>
         </div>
+      </div>
+
+      <div class="control-section">
+        <h4>Boundary Physics</h4>
+        <div class="control-group boundary-mode-group">
+          <div class="radio-group">
+            <input
+              type="radio"
+              id="boundary-reflective"
+              name="boundaryMode"
+              value="reflective"
+              checked
+            />
+            <label for="boundary-reflective">Reflective Walls</label>
+
+            <input
+              type="radio"
+              id="boundary-absorbing"
+              name="boundaryMode"
+              value="absorbing"
+            />
+            <label for="boundary-absorbing">Absorbing Boundaries</label>
+
+            <input
+              type="radio"
+              id="boundary-both"
+              name="boundaryMode"
+              value="both"
+            />
+            <label for="boundary-both">Both (Demo Conflict)</label>
+          </div>
+          <div class="mode-hint">
+            <span
+              >Reflective: Waves bounce back • Absorbing: Waves fade at
+              edges</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h4>Real-time Parameters</h4>
+        <div class="control-group">
+          <label for="brush-slider"
+            >Brush Size:
+            <span id="brush-size-value" class="param-value">5</span></label
+          >
+          <input
+            type="range"
+            min="1"
+            max="25"
+            value="5"
+            id="brush-slider"
+            class="param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="brightness-slider"
+            >Brightness:
+            <span id="brightness-value" class="param-value">1.0</span></label
+          >
+          <input
+            type="range"
+            min="0.1"
+            max="5"
+            value="1.0"
+            step="0.1"
+            id="brightness-slider"
+            class="param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="dt-slider"
+            >Time Step (dt):
+            <span id="dt-value" class="param-value">0.005</span></label
+          >
+          <input
+            type="range"
+            min="0.001"
+            max="0.02"
+            value="0.005"
+            step="0.001"
+            id="dt-slider"
+            class="param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="barrier-strength-slider"
+            >Barrier Strength:
+            <span id="barrier-strength-value" class="param-value"
+              >1.5</span
+            ></label
+          >
+          <input
+            type="range"
+            min="0.0"
+            max="3.14"
+            value="1.5"
+            step="0.1"
+            id="barrier-strength-slider"
+            class="param-slider"
+          />
+        </div>
+      </div>
+
+      <div class="control-section initial-state-section">
+        <h4>
+          Initial State <span class="reset-note">(Applied on Reset)</span>
+        </h4>
+        <div class="control-group">
+          <label for="px-slider"
+            >Momentum X:
+            <span id="px-value" class="param-value">60</span></label
+          >
+          <input
+            type="range"
+            min="-150"
+            max="150"
+            value="60"
+            id="px-slider"
+            class="initial-param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="py-slider"
+            >Momentum Y: <span id="py-value" class="param-value">0</span></label
+          >
+          <input
+            type="range"
+            min="-150"
+            max="150"
+            value="0"
+            id="py-slider"
+            class="initial-param-slider"
+          />
+        </div>
+        <div class="control-group">
+          <label for="sigma-slider"
+            >Packet Width:
+            <span id="sigma-value" class="param-value">15</span></label
+          >
+          <input
+            type="range"
+            min="5"
+            max="30"
+            value="15"
+            id="sigma-slider"
+            class="initial-param-slider"
+          />
+        </div>
+      </div>
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/regl/dist/regl.min.js"></script>
     <script type="module" src="src/main.js"></script>
-</body>
+  </body>
 </html>
 ```
 
