@@ -1,332 +1,710 @@
-// DEBUG flag: enable via ?debug URL parameter or localStorage.setItem('qc.debug','1')
-const DEBUG = (new URLSearchParams(location.search).has('debug') || (typeof localStorage !== 'undefined' && localStorage.getItem('qc.debug') === '1'));
+// renderer.js — physically faithful renderer for the quantum wave function
+// - uses uint8 RGBA textures for wave function representation (lossless phase, correct amplitude).
+// - textures are sized to the canvas backing store dimensions, accounting for device pixel ratio (DPR), for correct rendering on high-DPI displays.
+// - no per-pixel normalization: preserves |ψ| and phase so interference looks right.
 
-/**
- * renderer class - renders the quantum wave function to WebGL canvas
- * visualises complex wave function data as colorful patterns
- */
+const DEBUG =
+  new URLSearchParams(location.search).has('debug') ||
+  (typeof localStorage !== 'undefined' &&
+    localStorage.getItem('qc.debug') === '1')
+
+// feature flags (from ?query or localStorage)
+const qs = new URLSearchParams(location.search)
+function flagBool (qKey, storageKey, defaultValue) {
+  try {
+    if (qs.has(qKey)) {
+      const v = qs.get(qKey)
+      return !(v === '0' || v === 'false')
+    }
+    if (typeof localStorage !== 'undefined') {
+      const v = localStorage.getItem(storageKey)
+      if (v != null) return v === '1' || v === 'true'
+    }
+  } catch (_) {}
+  return defaultValue
+}
+function flagNum (qKey, storageKey, defaultValue) {
+  try {
+    if (qs.has(qKey)) {
+      const n = Number(qs.get(qKey))
+      if (Number.isFinite(n)) return n
+    }
+    if (typeof localStorage !== 'undefined') {
+      const v = localStorage.getItem(storageKey)
+      if (v != null) {
+        const n = Number(v)
+        if (Number.isFinite(n)) return n
+      }
+    }
+  } catch (_) {}
+  return defaultValue
+}
+
+// a/b toggle to restore old two-texture path (psi + potential separate)
+const RENDERER_TWO_TEXTURES = flagBool(
+  'rendererTwoTextures',
+  'qc.renderer.twoTextures',
+  false
+)
+// enable half-float path when float32 unavailable
+const ENABLE_HALF_FLOAT = flagBool('halfFloat', 'qc.renderer.halfFloat', true)
+// uint8 scale scan cadence and smoothing
+const UINT8_SCALE_EVERY_N = flagNum('u8n', 'qc.renderer.u8n', 4)
+const UINT8_SCALE_SMOOTH_ALPHA = flagNum('u8alpha', 'qc.renderer.u8alpha', 0.5)
+
 export class Renderer {
-    /**
-     * initialise the WebGL renderer with regl
-     * @param {HTMLCanvasElement} canvasElement - the canvas to render to
-     */
-    constructor(canvasElement) {
-        this.canvas = canvasElement;
-        this.regl = window.createREGL(canvasElement);
+  /**
+   * @param {HTMLCanvasElement} canvasElement
+   */
+  constructor (canvasElement) {
+    this.canvas = canvasElement
 
-        // store backing store dimensions (DPR-aware)
-        this.backingStoreWidth = canvasElement.width;
-        this.backingStoreHeight = canvasElement.height;
-        
-        // diagnostic tracking for amplitude scaling
-        this.scalingDiagnostics = {
-            frameCount: 0,
-            lastWarningFrame: -1,
-            warningThreshold: 60 // warn once per second at 60fps
-        };
-        
-        if (DEBUG) {
-            console.log(`[DPR FIX] Renderer using backing store: ${this.backingStoreWidth}x${this.backingStoreHeight}`);
-        }
+    // ---- GL context (prefer WebGL2) ----
+    const gl2 =
+      canvasElement.getContext('webgl2', { alpha: false, antialias: false }) ||
+      null
+    const gl =
+      gl2 ||
+      canvasElement.getContext('webgl', { alpha: false, antialias: false }) ||
+      canvasElement.getContext('experimental-webgl', {
+        alpha: false,
+        antialias: false
+      })
+    if (!gl) throw new Error('WebGL not available')
 
-        // create texture for wave function data using unsigned bytes
-        this.psiTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+    this.gl = gl
+    this.isWebGL2 = !!gl2
 
-        // create texture for potential barriers
+    // precision check for fragment shader
+    const spf = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)
+    this.hasHighp = !!spf && spf.precision > 0
+
+    // float/half-float texture support
+    this.supportsFloat32Tex =
+      this.isWebGL2 || !!gl.getExtension('OES_texture_float')
+    this.supportsFloatLinear =
+      this.isWebGL2 || !!gl.getExtension('OES_texture_float_linear')
+    this.supportsHalfFloatTex =
+      this.isWebGL2 || !!gl.getExtension('OES_texture_half_float')
+    this.supportsHalfFloatLinear =
+      this.isWebGL2 || !!gl.getExtension('OES_texture_half_float_linear')
+
+    // create regl on our context (ask for extensions explicitly in webgl1)
+    const extList = this.isWebGL2
+      ? []
+      : [
+          'OES_texture_float',
+          'OES_texture_float_linear',
+          'OES_texture_half_float',
+          'OES_texture_half_float_linear'
+        ]
+    this.regl = window.createREGL({ gl, extensions: extList })
+
+    // choose texture type: float32 > half-float > uint8
+    this.textureType = this.supportsFloat32Tex
+      ? 'float'
+      : ENABLE_HALF_FLOAT && this.supportsHalfFloatTex
+        ? 'half float'
+        : 'uint8'
+    // mode: true => uint8 fallback (with global scale); false => float/half-float textures
+    this.uint8Mode = this.textureType === 'uint8'
+
+    // Current sim texture allocation
+    this.texW = 0
+    this.texH = 0
+
+    // gpu resources
+    this.psiTexture = null
+    this.potentialTexture = null // only used when two-texture path is enabled
+
+    // cpu staging buffers (allocated on first draw)
+    this.psiF32 = null // float/half-float path buffer (rgba)
+    this.potF32 = null // only for two-texture path
+    this.psiU8 = null // uint8 path buffer (rgba)
+    this.potU8 = null // only for two-texture path
+
+    // last computed global scale (uint8 mode only)
+    this.currentScale = 1.0
+
+    // path/flag configuration
+    this.twoTextures = RENDERER_TWO_TEXTURES
+    this.uint8ScaleEveryN = Math.max(1, UINT8_SCALE_EVERY_N | 0)
+    this.scaleSmoothAlpha = Math.min(
+      0.99,
+      Math.max(0.0, UINT8_SCALE_SMOOTH_ALPHA)
+    )
+    this.frameCounter = 0
+    this.lastPotentialVersion = -1
+    this.lastBarrierEnergy = NaN
+    this.needPotInit = true // force first-time pack of potential channel
+    this.bytesPerPixel =
+      this.textureType === 'float'
+        ? 16
+        : this.textureType === 'half float'
+          ? 8
+          : 4
+
+    // instrumentation accumulators (debug only)
+    this.debugStats = {
+      lastSummaryTime:
+        typeof performance !== 'undefined' ? performance.now() : 0,
+      frames: 0,
+      packMs: 0,
+      uploadMs: 0,
+      drawMs: 0,
+      bytesUploaded: 0
+    }
+
+    // build draw command
+    this.drawCommand = this._makeDrawCommand()
+
+    if (DEBUG) {
+      console.log(
+        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | type=${this.textureType} | float32=${this.supportsFloat32Tex} | half=${this.supportsHalfFloatTex} | linear(float=${this.supportsFloatLinear}, half=${this.supportsHalfFloatLinear}) | mode=${this.uint8Mode ? 'UINT8+scale' : this.textureType === 'half float' ? 'HALF' : 'FLOAT'} | twoTex=${this.twoTextures}`
+      )
+    }
+  }
+
+  // create / update textures and staging buffers for a given grid size
+  _ensureTextures (simW, simH) {
+    if (
+      this.texW === simW &&
+      this.texH === simH &&
+      this.psiTexture &&
+      (this.twoTextures ? this.potentialTexture : true)
+    ) {
+      return
+    }
+
+    this.texW = simW
+    this.texH = simH
+
+    // release old textures if any
+    if (this.psiTexture) this.psiTexture.destroy()
+    if (this.potentialTexture) this.potentialTexture.destroy()
+
+    const filtering =
+      this.textureType === 'float'
+        ? this.supportsFloatLinear
+          ? 'linear'
+          : 'nearest'
+        : this.textureType === 'half float'
+          ? this.supportsHalfFloatLinear || this.isWebGL2
+            ? 'linear'
+            : 'nearest'
+          : 'linear'
+
+    if (this.uint8Mode) {
+      // ----- uint8 texture (normalized upload) -----
+      this.psiTexture = this.regl.texture({
+        width: simW,
+        height: simH,
+        format: 'rgba',
+        type: 'uint8',
+        mag: 'linear',
+        min: 'linear',
+        wrapS: 'clamp',
+        wrapT: 'clamp',
+        data: null
+      })
+      if (this.twoTextures) {
         this.potentialTexture = this.regl.texture({
-            width: this.backingStoreWidth,
-            height: this.backingStoreHeight,
-            format: 'rgba',
-            type: 'uint8',
-            data: null,
-            mag: 'linear',
-            min: 'linear'
-        });
+          width: simW,
+          height: simH,
+          format: 'rgba',
+          type: 'uint8',
+          mag: 'linear',
+          min: 'linear',
+          wrapS: 'clamp',
+          wrapT: 'clamp',
+          data: null
+        })
+      } else {
+        this.potentialTexture = null
+      }
 
-        // pre-allocate texture data buffers for performance (using bytes) - DPR-aware size
-        this.textureDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
-        this.potentialDataBuffer = new Uint8Array(this.backingStoreWidth * this.backingStoreHeight * 4);
+      this.psiU8 = new Uint8Array(simW * simH * 4)
+      this.potU8 = this.twoTextures ? new Uint8Array(simW * simH * 4) : null
+      this.psiF32 = null
+      this.potF32 = null
+    } else {
+      // ----- float or half-float texture -----
+      this.psiTexture = this.regl.texture({
+        width: simW,
+        height: simH,
+        format: 'rgba',
+        type: this.textureType, // 'float' or 'half float'
+        mag: filtering,
+        min: filtering,
+        wrapS: 'clamp',
+        wrapT: 'clamp',
+        data: null
+      })
+      if (this.twoTextures) {
+        this.potentialTexture = this.regl.texture({
+          width: simW,
+          height: simH,
+          format: 'rgba',
+          type: this.textureType,
+          mag: filtering,
+          min: filtering,
+          wrapS: 'clamp',
+          wrapT: 'clamp',
+          data: null
+        })
+      } else {
+        this.potentialTexture = null
+      }
 
-        // create the main rendering command - WebGL compatible version
-        this.drawCommand = this.regl({
-            // vertex shader - sets up fullscreen quad
-            vert: `
-                precision mediump float;
-                attribute vec2 position;
-                varying vec2 uv;
-                void main() {
-                    uv = 0.5 * position + 0.5;
-                    gl_Position = vec4(position, 0, 1);
-                }
-            `,
-
-            // fragment shader - simplified quantum wave function visualisation
-            frag: `
-                precision mediump float;
-                uniform sampler2D psiTexture;
-                uniform sampler2D potentialTexture;
-                uniform float u_brightness;
-                uniform float u_potentialMax;
-                uniform float u_magCutoff;
-                uniform vec2 u_textureSize;
-                varying vec2 uv;
-
-                const float PI = 3.14159265359;
-                const float TWO_PI = 6.28318530718;
-
-                // Enhanced quantum color mapping
-                vec3 quantumColorMapping(float magnitude, float phase) {
-                    // Phase-based color mapping with improved perceptual uniformity
-                    float hue = phase / TWO_PI; // Normalize phase to [0,1]
-                    float saturation = clamp(magnitude * 2.0, 0.0, 1.0);
-                    float lightness = 0.3 + magnitude * 0.7;
-                    
-                    // HSL to RGB conversion
-                    vec3 hsl = vec3(hue, saturation, lightness);
-                    vec3 rgb = clamp(abs(mod(hsl.x*6.0+vec3(0.0,4.0,2.0), 6.0)-3.0)-1.0, 0.0, 1.0);
-                    return hsl.z + hsl.y * (rgb-0.5)*(1.0-abs(2.0*hsl.z-1.0));
-                }
-
-                // Simple glow effect using nearby samples
-                vec3 applyGlow(vec3 baseColor, float magnitude, vec2 uv) {
-                    vec2 texelSize = 1.0 / u_textureSize;
-                    vec3 glow = vec3(0.0);
-                    float glowStrength = magnitude * 0.5;
-                    
-                    // Sample nearby pixels for glow effect
-                    for (int x = -2; x <= 2; x++) {
-                        for (int y = -2; y <= 2; y++) {
-                            vec2 offset = vec2(float(x), float(y)) * texelSize;
-                            vec2 samplePsi = texture2D(psiTexture, uv + offset).rg * 2.0 - 1.0;
-                            float sampleMag = length(samplePsi);
-                            float distance = length(vec2(float(x), float(y)));
-                            float weight = exp(-distance * distance / 8.0) * sampleMag;
-                            glow += baseColor * weight;
-                        }
-                    }
-                    
-                    return baseColor + glow * glowStrength * 0.1;
-                }
-
-                // Phase contours for quantum visualization
-                vec3 applyPhaseContours(vec3 baseColor, float phase, float magnitude) {
-                    float contourInterval = PI / 4.0; // Contours every 45 degrees
-                    float normalizedPhase = mod(phase + PI, TWO_PI) / TWO_PI;
-                    float contourPhase = mod(normalizedPhase, contourInterval / TWO_PI);
-                    
-                    float contourWidth = 0.02;
-                    float contour = smoothstep(0.0, contourWidth, contourPhase) -
-                                   smoothstep(contourInterval / TWO_PI - contourWidth,
-                                            contourInterval / TWO_PI, contourPhase);
-                    
-                    float contourOpacity = 0.3 * smoothstep(0.1, 0.4, magnitude);
-                    vec3 contourColor = vec3(0.0, 0.0, 0.0);
-                    
-                    return mix(baseColor, contourColor, contour * contourOpacity);
-                }
-
-                // Potential barrier visualization
-                vec3 applyPotentialBarriers(vec3 baseColor, float potential) {
-                    if (potential > 0.01) {
-                        vec3 barrierColor = vec3(0.8, 0.1, 0.1); // Red barriers
-                        float barrierOpacity = clamp(potential / u_potentialMax, 0.0, 0.8);
-                        return mix(baseColor, barrierColor, barrierOpacity);
-                    }
-                    return baseColor;
-                }
-
-                // Enhanced magnitude scaling for better visibility
-                float enhanceMagnitude(float magnitude) {
-                    // Logarithmic scaling for small magnitudes
-                    if (magnitude < 0.1) {
-                        return pow(magnitude, 0.5) * 2.0;
-                    } else {
-                        return magnitude;
-                    }
-                }
-
-                void main() {
-                    // Read and convert complex wave function
-                    vec2 texel = texture2D(psiTexture, uv).rg;
-                    vec2 psi = (texel * 2.0) - 1.0;
-                    
-                    float magnitude = length(psi);
-                    float phase = atan(psi.y, psi.x);
-                    
-                    // Read potential barrier
-                    float potential = texture2D(potentialTexture, uv).r * u_potentialMax;
-                    
-                    // Enhance small magnitudes for better visibility
-                    float enhancedMagnitude = enhanceMagnitude(magnitude);
-                    
-                    // Apply quantum color mapping
-                    vec3 baseColor = quantumColorMapping(enhancedMagnitude, phase);
-                    
-                    // Apply glow effect
-                    vec3 glowColor = applyGlow(baseColor, enhancedMagnitude, uv);
-                    
-                    // Apply phase contours
-                    vec3 contourColor = applyPhaseContours(glowColor, phase, enhancedMagnitude);
-                    
-                    // Filter out quantization noise: anything below u_magCutoff is background
-                    vec3 quantumColor;
-                    if (magnitude < u_magCutoff) {
-                        // background stays pure black
-                        quantumColor = vec3(0.0);
-                    } else {
-                        // visible wave—brightness scales contour color
-                        quantumColor = contourColor * u_brightness;
-                    }
-                    
-                    // overlay barriers at full strength
-                    vec3 finalColor = applyPotentialBarriers(quantumColor, potential);
-                    gl_FragColor = vec4(finalColor, 1.0);
-                }
-            `,
-
-            // attributes - fullscreen quad vertices
-            attributes: {
-                position: [
-                    [-1, -1], [1, -1], [-1, 1],
-                    [-1, 1], [1, -1], [1, 1]
-                ]
-            },
-
-            // uniforms - pass wave function and potential textures
-            uniforms: {
-                psiTexture: this.psiTexture,
-                potentialTexture: this.potentialTexture,
-                u_brightness: this.regl.prop('brightness'),
-                u_potentialMax: this.regl.prop('potentialMax'),
-                u_magCutoff: this.regl.prop('magCutoff'),
-                u_textureSize: this.regl.prop('textureSize')
-            },
-
-            // draw 6 vertices (2 triangles = fullscreen quad)
-            count: 6
-        });
+      this.psiF32 = new Float32Array(simW * simH * 4)
+      this.potF32 = this.twoTextures ? new Float32Array(simW * simH * 4) : null
+      this.psiU8 = null
+      this.potU8 = null
     }
 
-    /**
-     * render the current quantum state to the canvas
-     * @param {SimulationState} state - the simulation state to visualise
-     */
-    draw(state) {
-        // simulation grid size (rect-safe)
-        const simW = state.gridSize.width;
-        const simH = state.gridSize.height;
-        const scaleX = this.backingStoreWidth  / simW;
-        const scaleY = this.backingStoreHeight / simH;
-        
-        // diagnostic tracking for amplitude scaling warnings
-        this.scalingDiagnostics.frameCount++;
-        let scaledPixelCount = 0;
-        let maxAmplitudeFound = 0;
-        
-        // pack complex wave function data into rgba texture format with DPR scaling
-        // convert float values to 0-255 byte range for uint8 texture
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                let simX = Math.floor(backingX / scaleX);
-                let simY = Math.floor(backingY / scaleY);
-                // clamp to last valid cell to avoid OOB on the right/bottom edge
-                if (simX >= simW) simX = simW - 1;
-                if (simY >= simH) simY = simH - 1;
-                const simIdx = (simY * simW + simX) * 2; // interleaved complex index
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // convert float values to 0-255 range with adaptive scaling
-                const real = state.psi[simIdx];
-                const imag = state.psi[simIdx + 1];
-                
-                // per-pixel adaptive scaling to prevent silent clipping of |ψ| > 1 components
-                const maxComponent = Math.max(Math.abs(real), Math.abs(imag));
-                const scale = maxComponent > 1.0 ? 1.0 / maxComponent : 1.0;
-                
-                // track scaling diagnostics
-                if (scale < 1.0) {
-                    scaledPixelCount++;
-                    maxAmplitudeFound = Math.max(maxAmplitudeFound, maxComponent);
-                }
-                
-                // apply scaling while preserving phase information
-                const scaledReal = real * scale;
-                const scaledImag = imag * scale;
-                
-                // map from [-1, 1] to [0, 255] with offset for negative values
-                this.textureDataBuffer[backingIdx] = Math.floor((scaledReal + 1.0) * 127.5);     // real -> r
-                this.textureDataBuffer[backingIdx + 1] = Math.floor((scaledImag + 1.0) * 127.5); // imag -> g
-                this.textureDataBuffer[backingIdx + 2] = 0;                                // blue
-                this.textureDataBuffer[backingIdx + 3] = 255;                              // alpha
-            }
-        }
-        
-        // emit diagnostic warning if significant scaling occurred
-        const totalPixels = this.backingStoreWidth * this.backingStoreHeight;
-        const scalingPercentage = (scaledPixelCount / totalPixels) * 100;
-        
-        if (DEBUG && scaledPixelCount > 0 &&
-            this.scalingDiagnostics.frameCount - this.scalingDiagnostics.lastWarningFrame >= this.scalingDiagnostics.warningThreshold) {
-            console.warn(`[QUANTUM AMPLITUDE SCALING] Frame ${this.scalingDiagnostics.frameCount}: ` +
-                        `${scaledPixelCount} pixels (${scalingPercentage.toFixed(2)}%) required amplitude scaling. ` +
-                        `Max component found: ${maxAmplitudeFound.toFixed(4)} (exceeds [-1,1] texture range). ` +
-                        `Phase information preserved via adaptive scaling.`);
-            this.scalingDiagnostics.lastWarningFrame = this.scalingDiagnostics.frameCount;
-        }
+    this.needPotInit = true // force packing B on first frame after realloc
 
-        // define potential scaling from barrier energy (default 300.0)
-        const potentialMax = (state.params.barrierEnergy > 0) ? state.params.barrierEnergy : 300.0;
-        const potentialToByte = 255 / potentialMax;
-
-        // pack potential barrier data into rgba texture format with DPR scaling
-        for (let backingY = 0; backingY < this.backingStoreHeight; backingY++) {
-            for (let backingX = 0; backingX < this.backingStoreWidth; backingX++) {
-                // map backing store coordinates to simulation grid coordinates
-                let simX = Math.floor(backingX / scaleX);
-                let simY = Math.floor(backingY / scaleY);
-                // clamp to last valid cell to avoid OOB on the right/bottom edge
-                if (simX >= simW) simX = simW - 1;
-                if (simY >= simH) simY = simH - 1;
-                const simIdxScalar = (simY * simW + simX);
-                const backingIdx = (backingY * this.backingStoreWidth + backingX) * 4; // rgba index
-                
-                // normalise potential using dynamic scaling based on potentialMax
-                const normalizedPotential = Math.max(
-                    0,
-                    Math.min(255, Math.floor(state.potential[simIdxScalar] * potentialToByte))
-                );
-                
-                this.potentialDataBuffer[backingIdx] = normalizedPotential;     // potential -> r
-                this.potentialDataBuffer[backingIdx + 1] = 0;                   // green
-                this.potentialDataBuffer[backingIdx + 2] = 0;                   // blue
-                this.potentialDataBuffer[backingIdx + 3] = 255;                 // alpha
-            }
-        }
-
-        // upload texture data to GPU
-        this.psiTexture.subimage(this.textureDataBuffer);
-        this.potentialTexture.subimage(this.potentialDataBuffer);
-
-        // clear canvas and render
-        this.regl.clear({
-            color: [0, 0, 0, 1],
-            depth: 1
-        });
-// execute the draw command with brightness parameter and current texture size
-        this.drawCommand({
-            brightness: state.params.brightness,
-            textureSize: [this.backingStoreWidth, this.backingStoreHeight],
-            potentialMax: (state.params.barrierEnergy > 0 ? state.params.barrierEnergy : 300.0),
-            magCutoff: (Number.isFinite(state.visual?.magCutoff) && state.visual.magCutoff >= 0 ? state.visual.magCutoff : 0.01)
-        });
+    if (DEBUG) {
+      console.log(
+        `[Renderer] Allocated textures ${simW}×${simH} (type: ${this.textureType}${this.twoTextures ? ', two-textures' : ', single-texture'})`
+      )
     }
+  }
+
+  _makeDrawCommand () {
+    const precision = this.hasHighp ? 'highp' : 'mediump'
+
+    const vert = `
+      precision ${precision} float;
+      attribute vec2 position;
+      varying vec2 vUv;
+      void main() {
+        vUv = 0.5 * position + 0.5;
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
+    `
+
+    // domain-coloring: hue = phase, brightness ~ sqrt(|ψ|)
+    // uint8 fallback reconstructs ψ via uniform u_scale (global).
+    const frag = this.twoTextures
+      ? `
+      precision ${precision} float;
+      varying vec2 vUv;
+
+      uniform sampler2D psiTexture;
+      uniform sampler2D potentialTexture;
+
+      uniform float u_brightness;
+      uniform float u_magCutoff;
+      uniform float u_scale;     // uint8 mode only (global amplitude scale)
+      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
+
+      const float PI = 3.141592653589793;
+      const float TAU = 6.283185307179586;
+
+      vec3 hsv2rgb(vec3 c) {
+        vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        return c.z * mix(vec3(1.0), rgb, c.y);
+      }
+
+      void main() {
+        vec4 t = texture2D(psiTexture, vUv);
+        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+
+        float mag = length(psi);
+        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
+
+        float phase = atan(psi.y, psi.x);
+        float hue   = fract((phase + PI) / TAU);
+        float amp   = sqrt(mag) * u_brightness;
+        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+
+        float K = 24.0;
+        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
+        float contour = smoothstep(0.48, 0.5, f);
+        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+
+        float pot = texture2D(potentialTexture, vUv).r;
+        float potAlpha = 0.6 * pot * pot;
+        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        vec3 color = mix(base, barrier, potAlpha);
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `
+      : `
+      precision ${precision} float;
+      varying vec2 vUv;
+
+      uniform sampler2D psiTexture;
+
+      uniform float u_brightness;
+      uniform float u_magCutoff;
+      uniform float u_scale;     // uint8 mode only (global amplitude scale)
+      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
+
+      const float PI = 3.141592653589793;
+      const float TAU = 6.283185307179586;
+
+      vec3 hsv2rgb(vec3 c) {
+        vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        return c.z * mix(vec3(1.0), rgb, c.y);
+      }
+
+      void main() {
+        vec4 t = texture2D(psiTexture, vUv);
+        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+
+        float mag = length(psi);
+        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
+
+        float phase = atan(psi.y, psi.x);
+        float hue   = fract((phase + PI) / TAU);
+        float amp   = sqrt(mag) * u_brightness;
+        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+
+        float K = 24.0;
+        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
+        float contour = smoothstep(0.48, 0.5, f);
+        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+
+        // Potential overlay from B channel (normalized 0..1 in t.b)
+        float pot = t.b;
+        float potAlpha = 0.6 * pot * pot;
+        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        vec3 color = mix(base, barrier, potAlpha);
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `
+
+    const uniforms = {
+      psiTexture: this.regl.prop('psi'),
+      u_brightness: this.regl.prop('brightness'),
+      u_magCutoff: this.regl.prop('magCutoff'),
+      u_scale: this.regl.prop('uScale'),
+      u_uint8Mode: this.regl.prop('uint8Mode')
+    }
+    if (this.twoTextures) {
+      uniforms.potentialTexture = this.regl.prop('pot')
+    }
+
+    return this.regl({
+      vert,
+      frag,
+      attributes: {
+        position: [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [-1, 1],
+          [1, -1],
+          [1, 1]
+        ]
+      },
+      uniforms,
+      count: 6
+    })
+  }
+
+  /**
+   * render the current quantum state
+   * @param {SimulationState} state
+   */
+  draw (state) {
+    const simW = state.gridSize.width
+    const simH = state.gridSize.height
+    this._ensureTextures(simW, simH)
+
+    // potential normalisation base (kept same as before)
+    const barrierEnergy =
+      state.params.barrierEnergy > 0 ? state.params.barrierEnergy : 300.0
+    const invMax = barrierEnergy > 0 ? 1.0 / barrierEnergy : 0.0
+    const pixelCount = simW * simH
+
+    // determine if we must repack potential (b channel or separate texture)
+    const potDirty =
+      this.needPotInit ||
+      state.potentialVersion !== this.lastPotentialVersion ||
+      this.lastBarrierEnergy !== barrierEnergy
+
+    // instrumentation timers
+    const t0 = typeof performance !== 'undefined' ? performance.now() : 0
+
+    if (this.uint8Mode) {
+      // uint8 path: pack ψ into rg using global scale; optionally repack potential
+      const psi = state.psi
+      const out = this.psiU8
+      const V = state.potential
+
+      // periodic scan of s
+      let scannedThisFrame = false
+      if (this.frameCounter % this.uint8ScaleEveryN === 0) {
+        let S = 0.0
+        for (let i = 0; i < psi.length; i += 2) {
+          const ar = Math.abs(psi[i])
+          const ai = Math.abs(psi[i + 1])
+          if (ar > S) S = ar
+          if (ai > S) S = ai
+        }
+        if (!Number.isFinite(S) || S < 1e-12) S = 1.0
+        const smoothed =
+          this.scaleSmoothAlpha * this.currentScale +
+          (1.0 - this.scaleSmoothAlpha) * S
+        this.currentScale = Math.max(smoothed, S) // never below S to avoid clipping
+        scannedThisFrame = true
+      }
+
+      // pack pass with clip detection; optionally write B if potDirty
+      let o = 0
+      let t = 0
+      let p = 0
+      let clipped = false
+      const Suse = this.currentScale
+      for (let px = 0; px < pixelCount; px++, t += 2, o += 4, p += 1) {
+        const r = psi[t] / Suse
+        const im = psi[t + 1] / Suse
+        if (r > 1.0 || r < -1.0 || im > 1.0 || im < -1.0) clipped = true
+        const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5))
+        const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5))
+        out[o] = (r01 * 255) | 0 // R
+        out[o + 1] = (i01 * 255) | 0 // G
+        if (this.twoTextures) {
+          // leave B unused; A=255
+        } else if (potDirty) {
+          const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+          out[o + 2] = (v01 * 255) | 0 // B = normalised potential
+        }
+        out[o + 3] = 255 // A
+      }
+
+      if (clipped && !scannedThisFrame) {
+        // immediate rescan to avoid clipping this frame
+        let S = 0.0
+        for (let i = 0; i < psi.length; i += 2) {
+          const ar = Math.abs(psi[i])
+          const ai = Math.abs(psi[i + 1])
+          if (ar > S) S = ar
+          if (ai > S) S = ai
+        }
+        if (!Number.isFinite(S) || S < 1e-12) S = 1.0
+        const smoothed =
+          this.scaleSmoothAlpha * this.currentScale +
+          (1.0 - this.scaleSmoothAlpha) * S
+        this.currentScale = Math.max(smoothed, S)
+
+        // repack with new scale
+        o = 0
+        t = 0
+        p = 0
+        const Suse2 = this.currentScale
+        for (let px = 0; px < pixelCount; px++, t += 2, o += 4, p += 1) {
+          const r = psi[t] / Suse2
+          const im = psi[t + 1] / Suse2
+          const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5))
+          const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5))
+          out[o] = (r01 * 255) | 0
+          out[o + 1] = (i01 * 255) | 0
+          if (!this.twoTextures && potDirty) {
+            const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+            out[o + 2] = (v01 * 255) | 0
+          }
+          out[o + 3] = 255
+        }
+      }
+
+      const t1 = typeof performance !== 'undefined' ? performance.now() : 0
+      this.psiTexture.subimage({ data: out, width: simW, height: simH })
+      let uploads = 1
+
+      if (this.twoTextures) {
+        // old path: pack potential separately (always, to mirror old behavior)
+        const pout = this.potU8
+        let qo = 0
+        for (let i = 0; i < state.potential.length; i++) {
+          const v01 = Math.max(0, Math.min(1, state.potential[i] * invMax))
+          const b = (v01 * 255) | 0
+          pout[qo++] = b // R
+          pout[qo++] = 0 // G
+          pout[qo++] = 0 // B
+          pout[qo++] = 255 // A
+        }
+        this.potentialTexture.subimage({
+          data: pout,
+          width: simW,
+          height: simH
+        })
+        uploads = 2
+      }
+
+      const t2 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      // clear + draw
+      this.regl.clear({ color: [0, 0, 0, 1], depth: 1 })
+      const t3 = typeof performance !== 'undefined' ? performance.now() : 0
+      this.drawCommand({
+        psi: this.psiTexture,
+        pot: this.twoTextures ? this.potentialTexture : undefined,
+        brightness: state.params.brightness,
+        magCutoff:
+          Number.isFinite(state.visual?.magCutoff) &&
+          state.visual.magCutoff >= 0
+            ? state.visual.magCutoff
+            : 0.0,
+        uScale: this.currentScale,
+        uint8Mode: 1
+      })
+      const t4 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      // update versions and stats
+      if (!this.twoTextures && potDirty) {
+        this.lastPotentialVersion = state.potentialVersion
+        this.lastBarrierEnergy = barrierEnergy
+        this.needPotInit = false
+      }
+      this.frameCounter++
+      if (DEBUG) {
+        const packMs = t1 - t0
+        const uploadMs = t2 - t1
+        const drawMs = t4 - t3
+        const bytes = pixelCount * this.bytesPerPixel * uploads
+        // per-frame debug
+        // eslint-disable-next-line no-console
+        console.debug(
+          `[Renderer] pack=${packMs.toFixed(2)}ms upload=${uploadMs.toFixed(2)}ms draw=${drawMs.toFixed(2)}ms bytes=${(bytes / 1e6).toFixed(3)}MB uploads=${uploads}`
+        )
+        // accumulate
+        this.debugStats.frames += 1
+        this.debugStats.packMs += packMs
+        this.debugStats.uploadMs += uploadMs
+        this.debugStats.drawMs += drawMs
+        this.debugStats.bytesUploaded += bytes
+        const now = t4
+        if (now - this.debugStats.lastSummaryTime >= 1000) {
+          const f = this.debugStats.frames || 1
+          const avgPack = this.debugStats.packMs / f
+          const avgUpload = this.debugStats.uploadMs / f
+          const avgDraw = this.debugStats.drawMs / f
+          const avgBytes = this.debugStats.bytesUploaded / f
+          // eslint-disable-next-line no-console
+          console.log(
+            `[Renderer Σ1s] N=${f} avg(pack=${avgPack.toFixed(2)}ms, upload=${avgUpload.toFixed(2)}ms, draw=${avgDraw.toFixed(2)}ms) avgBytes=${(avgBytes / 1e6).toFixed(3)}MB type=${this.textureType} twoTex=${this.twoTextures} grid=${simW}x${simH}`
+          )
+          this.debugStats.lastSummaryTime = now
+          this.debugStats.frames =
+            this.debugStats.packMs =
+            this.debugStats.uploadMs =
+            this.debugStats.drawMs =
+            this.debugStats.bytesUploaded =
+              0
+        }
+      }
+    } else {
+      // float/half path: store ψ directly in rg; potential normalized in b (single texture) or separate texture
+      const psi = state.psi
+      const out = this.psiF32
+      const V = state.potential
+
+      let o = 0
+      let t = 0
+      let p = 0
+      if (this.twoTextures) {
+        // single pass for ψ only; potential packed separately below
+        for (let px = 0; px < pixelCount; px++, t += 2, o += 4) {
+          out[o] = psi[t] // R = re
+          out[o + 1] = psi[t + 1] // G = im
+          // leave B unchanged
+          out[o + 3] = 1.0 // A
+        }
+      } else {
+        // single pass: pack ψ and, if needed, potential into B
+        for (let px = 0; px < pixelCount; px++, t += 2, p += 1, o += 4) {
+          out[o] = psi[t]
+          out[o + 1] = psi[t + 1]
+          if (potDirty) {
+            const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+            out[o + 2] = v01 // B = normalised potential
+          }
+          out[o + 3] = 1.0
+        }
+      }
+
+      const t1 = typeof performance !== 'undefined' ? performance.now() : 0
+      this.psiTexture.subimage({ data: out, width: simW, height: simH })
+      let uploads = 1
+      if (this.twoTextures) {
+        const pout = this.potF32
+        let qo = 0
+        for (let i = 0; i < state.potential.length; i++) {
+          pout[qo++] = Math.max(0, Math.min(1, state.potential[i] * invMax))
+          pout[qo++] = 0.0
+          pout[qo++] = 0.0
+          pout[qo++] = 1.0
+        }
+        this.potentialTexture.subimage({
+          data: pout,
+          width: simW,
+          height: simH
+        })
+        uploads = 2
+      }
+      const t2 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      // clear + draw
+      this.regl.clear({ color: [0, 0, 0, 1], depth: 1 })
+      const t3 = typeof performance !== 'undefined' ? performance.now() : 0
+      this.drawCommand({
+        psi: this.psiTexture,
+        pot: this.twoTextures ? this.potentialTexture : undefined,
+        brightness: state.params.brightness,
+        magCutoff:
+          Number.isFinite(state.visual?.magCutoff) &&
+          state.visual.magCutoff >= 0
+            ? state.visual.magCutoff
+            : 0.0,
+        uScale: 1.0,
+        uint8Mode: 0
+      })
+      const t4 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      if (!this.twoTextures && potDirty) {
+        this.lastPotentialVersion = state.potentialVersion
+        this.lastBarrierEnergy = barrierEnergy
+        this.needPotInit = false
+      }
+      this.frameCounter++
+      if (DEBUG) {
+        const packMs = t1 - t0
+        const uploadMs = t2 - t1
+        const drawMs = t4 - t3
+        const bytes = pixelCount * this.bytesPerPixel * uploads
+        // eslint-disable-next-line no-console
+        console.debug(
+          `[Renderer] pack=${packMs.toFixed(2)}ms upload=${uploadMs.toFixed(2)}ms draw=${drawMs.toFixed(2)}ms bytes=${(bytes / 1e6).toFixed(3)}MB uploads=${uploads}`
+        )
+        this.debugStats.frames += 1
+        this.debugStats.packMs += packMs
+        this.debugStats.uploadMs += uploadMs
+        this.debugStats.drawMs += drawMs
+        this.debugStats.bytesUploaded += bytes
+        const now = t4
+        if (now - this.debugStats.lastSummaryTime >= 1000) {
+          const f = this.debugStats.frames || 1
+          const avgPack = this.debugStats.packMs / f
+          const avgUpload = this.debugStats.uploadMs / f
+          const avgDraw = this.debugStats.drawMs / f
+          const avgBytes = this.debugStats.bytesUploaded / f
+          // eslint-disable-next-line no-console
+          console.log(
+            `[Renderer Σ1s] N=${f} avg(pack=${avgPack.toFixed(2)}ms, upload=${avgUpload.toFixed(2)}ms, draw=${avgDraw.toFixed(2)}ms) avgBytes=${(avgBytes / 1e6).toFixed(3)}MB type=${this.textureType} twoTex=${this.twoTextures} grid=${simW}x${simH}`
+          )
+          this.debugStats.lastSummaryTime = now
+          this.debugStats.frames =
+            this.debugStats.packMs =
+            this.debugStats.uploadMs =
+            this.debugStats.drawMs =
+            this.debugStats.bytesUploaded =
+              0
+        }
+      }
+    }
+  }
 }

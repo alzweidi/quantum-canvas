@@ -1,21 +1,24 @@
 # Quantum Canvas: An Interactive 2D Quantum Physics Simulator
 
-
-
 **science is the grammar of nature; art is the accent we choose.** the constants and equations would be discovered by someone, sooner or later; beethoven’s ninth would not. quantum canvas lives in that seam; taking the schrödinger equation off the chalkboard and onto a stage of light, where interference writes and phase becomes color. what begins as numerics resolves into an experience: repeatable like an experiment, singular like a performance.
 
-
-
+ <p align="center">
+   <img src="captures-enhanced/theeye.jpg" alt="The Eye" width="720" />
+ </p>
+ 
+ 
 ## Features
 
 ### Real-time Quantum Simulation
+
 - solves the 2D time-dependent schrödinger equation using the performant **split-step fourier method**
 
 ### WebGL Rendering
+
 A beautiful visualisation powered by a custom GLSL shader that includes:
 
 - **perceptually uniform color mapping** based on the wave function's phase and magnitude
-- **multi-scale glow effect** to give the wave packet a realistic, field-like appearance  
+- **multi-scale glow effect** to give the wave packet a realistic, field-like appearance
 - **phase contour lines** to clearly visualise wave structure and interference patterns
 - **integrated, real-time visualisation** of user-drawn potential barriers
 
@@ -51,23 +54,31 @@ python -m http.server
 
 then navigate to `http://localhost:8000` in your browser.
 
+## Acknowledgements
+
+1. **Once you take a capture, it may not look like the images you see throughout the repo since you will have to use something like Apple photo editer to enhance visiability since this is something i am still working on to have built in and specific to the engine**
+
+2. **The double slit experiment is not perfect since i am still working on it**
+
+3. **The absorber is not perfect since i am still working on it**
+
 ## Architecture
 
 the simulator follows a clear, modular structure that separates concerns into distinct components:
 
-- **[`main.js`](src/main.js)** *(Application Core)*: initialises all modules, runs the primary animation loop, and manages application-level state like pause/play and visibility
+- **[`main.js`](src/main.js)** _(Application Core)_: initialises all modules, runs the primary animation loop, and manages application-level state like pause/play and visibility
 
-- **[`SimulationState.js`](src/SimulationState.js)** *(Physics State)*: manages the simulation's state, including the wave function (ψ), potential fields, boundary conditions, and all physical parameters
+- **[`SimulationState.js`](src/SimulationState.js)** _(Physics State)_: manages the simulation's state, including the wave function (ψ), potential fields, boundary conditions, and all physical parameters
 
-- **[`ComputationEngine.js`](src/ComputationEngine.js)** *(Physics Engine)*: executes the time evolution of the wave function using the split-step fourier method
+- **[`ComputationEngine.js`](src/ComputationEngine.js)** _(Physics Engine)_: executes the time evolution of the wave function using the split-step fourier method
 
-- **[`fft.js`](src/fft.js)** *(Mathematical Operations)*: a self-coded, in-place fast fourier transform and its inverse
+- **[`fft.js`](src/fft.js)** _(Mathematical Operations)_: a self-coded, in-place fast fourier transform and its inverse
 
 - **[`constants.js`](src/constants.js)**: stores fundamental constants and initial simulation parameters
 
-- **[`Renderer.js`](src/Renderer.js)** *(visualisation)*: handles all WebGL rendering via regl, including the advanced shaders that visualise the quantum state
+- **[`Renderer.js`](src/Renderer.js)** _(visualisation)_: handles all WebGL rendering via regl, including the advanced shaders that visualise the quantum state
 
-- **[`UIController.js`](src/UIController.js)** *(user interaction)*: manages all user input from the UI panel and the canvas, translating it into changes in the simulation state
+- **[`UIController.js`](src/UIController.js)** _(user interaction)_: manages all user input from the UI panel and the canvas, translating it into changes in the simulation state
 
 - **[`presets.js`](src/presets.js)**: defines the configurations for the included quantum experiments
 
@@ -141,9 +152,11 @@ contributions are very welcome! any help to make it better is greatly appreciate
 
 ---
 
-*Built with determination by Abedalaziz Alzweidi*
+_Built with determination by Abedalaziz Alzweidi_
 
 ## Genesis Art Pieces
+
+- Pieces from Genesis are not lossless simulations of the quantum state, yet they look interesting and are relatively easy with paint with due to it's pixels, i have saved it on a seperate branch whilst the photos taken below Genesis are lossless however visiability effects were enhanced outside of the engine as i stated above in the repo.
 
 <p align="center">
   <img src="cool-captures/art1.png" alt="Genesis I" width="260" />
@@ -155,3 +168,14 @@ contributions are very welcome! any help to make it better is greatly appreciate
   <sub>Genesis II</sub>&nbsp;&nbsp;&nbsp;
   <sub>Genesis III</sub>
 </p>
+
+<p align="center">
+   <img src="captures-enhanced/alone.jpg" alt="Alone" width="260" />
+   <img src="captures-enhanced/coloured.jpg" alt="Coloured" width="260" />
+   <img src="captures-enhanced/blackwhite.jpg" alt="Black &amp; White" width="260" />
+ </p>
+ <p align="center">
+   <sub>Alone</sub>&nbsp;&nbsp;&nbsp;
+   <sub>Coloured</sub>&nbsp;&nbsp;&nbsp;
+   <sub>Black &amp; White</sub>
+ </p>
