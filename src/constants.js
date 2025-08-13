@@ -1,5 +1,5 @@
-export const GRID_SIZE = 256;
-export const DOMAIN_SIZE = 512.0; // physical domain size (independent of resolution)
+export const GRID_SIZE = 256; // grid resolution, must be power of 2, e.g. 256, 512, 1024, etc. You can change these via 'nano constant.js'
+export const DOMAIN_SIZE = 512.0; // physical domain size (independent of resolution) You can change these via 'nano constant.js' (I have no idea how to hook this into a UI feature, was too code complex for such a weird need)
 export const HBAR = 1;
 export const MASS = 1;
 export const INITIAL_DT = 0.005;
