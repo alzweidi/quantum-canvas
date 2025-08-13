@@ -187,26 +187,26 @@ inverse fft uses conjugation and $1/N$ normalisation.
 
 ### simulation parameters
 
-| parameter           | symbol     | value | units  |
-| ------------------- | ---------- | ----- | ------ |
-| grid size           | $N$        | 256   | cells  |
-| domain size         | $L$        | 512.0 | length |
-| reduced planck      | $\hbar$    | 1     | –      |
-| particle mass       | $m$        | 1     | –      |
-| time step           | $\Delta t$ | 0.005 | time   |
-| barrier energy (def)| –          | 300   | energy |
-| wall energy         | –          | $10^4$| energy |
-| absorber coeff       | $\alpha$  | 0.06  | –      |
+| parameter            | symbol     | value  | units  |
+| -------------------- | ---------- | ------ | ------ |
+| grid size            | $N$        | 256    | cells  |
+| domain size          | $L$        | 512.0  | length |
+| reduced planck       | $\hbar$    | 1      | –      |
+| particle mass        | $m$        | 1      | –      |
+| time step            | $\Delta t$ | 0.005  | time   |
+| barrier energy (def) | –          | 300    | energy |
+| wall energy          | –          | $10^4$ | energy |
+| absorber coeff       | $\alpha$   | 0.06   | –      |
 
 ### initial conditions
 
-| parameter    | symbol   | default | range                        |
-| ------------ | -------- | ------- | ---------------------------- |
-| position x   | $x_0$    | 256     | [0, 512]                     |
-| position y   | $y_0$    | 256     | [0, 512]                     |
+| parameter    | symbol   | default | range                                                            |
+| ------------ | -------- | ------- | ---------------------------------------------------------------- |
+| position x   | $x_0$    | 256     | [0, 512]                                                         |
+| position y   | $y_0$    | 256     | [0, 512]                                                         |
 | momentum x   | $p_x$    | 1.0     | $\big[-0.9\tfrac{\pi}{\Delta x},\,0.9\tfrac{\pi}{\Delta x}\big]$ |
 | momentum y   | $p_y$    | 0       | $\big[-0.9\tfrac{\pi}{\Delta y},\,0.9\tfrac{\pi}{\Delta y}\big]$ |
-| packet width | $\sigma$ | 15.0    | [5, 30]                      |
+| packet width | $\sigma$ | 15.0    | [5, 30]                                                          |
 
 ---
 
