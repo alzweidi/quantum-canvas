@@ -178,4 +178,21 @@ _Built with determination by Abedalaziz Alzweidi_
    <sub>Alone</sub>&nbsp;&nbsp;&nbsp;
    <sub>Coloured</sub>&nbsp;&nbsp;&nbsp;
    <sub>Black &amp; White</sub>
+  </p>
+
+## Recorded Test: Directed Packet with Absorbing Boundaries
+
+ <p align="center">
+   <video src="captures-enhanced/testA1.mov" controls width="720" preload="metadata">
+     Your browser does not support the video tag. You can download it here:
+     <a href="captures-enhanced/testA1.mov">testA1.mov</a>
+   </video>
  </p>
+
+- initial state: a stationary gaussian wave packet with zero mean momentum.
+- impulse: a momentum kick Δp is applied toward the bottom-right, imparting group velocity v_g = Δp/m (ħ = 1, m = 1 in code units).
+- evolution: the packet propagates diagonally as intended; dispersion broadens its width while phase winds set the hue.
+- absorbing boundaries: as the leading edge enters the bottom-right absorbing layer, the outgoing amplitude is smoothly damped with minimal reflection, preventing unphysical wrap-around.
+- observation: after the kick, the remaining interior amplitude stays coherent; with peripheral probability density removed by the absorber, the visible core appears to re-localise transiently before continued dispersive spreading.
+
+Direct link: [captures-enhanced/testA1.mov](captures-enhanced/testA1.mov)
