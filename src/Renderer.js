@@ -418,27 +418,37 @@ export class Renderer {
    * @param {number} simH - simulation height
    * @private
    */
-  _logRenderingPerformance (t0, t1, t2, t3, t4, pixelCount, uploads, simW, simH) {
+  _logRenderingPerformance (
+    t0,
+    t1,
+    t2,
+    t3,
+    t4,
+    pixelCount,
+    uploads,
+    simW,
+    simH
+  ) {
     if (!DEBUG) return
 
     const packMs = t1 - t0
     const uploadMs = t2 - t1
     const drawMs = t4 - t3
     const bytes = pixelCount * this.bytesPerPixel * uploads
-    
+
     // per-frame debug
     // eslint-disable-next-line no-console
     console.debug(
       `[Renderer] pack=${packMs.toFixed(2)}ms upload=${uploadMs.toFixed(2)}ms draw=${drawMs.toFixed(2)}ms bytes=${(bytes / 1e6).toFixed(3)}MB uploads=${uploads}`
     )
-    
+
     // accumulate stats
     this.debugStats.frames += 1
     this.debugStats.packMs += packMs
     this.debugStats.uploadMs += uploadMs
     this.debugStats.drawMs += drawMs
     this.debugStats.bytesUploaded += bytes
-    
+
     const now = t4
     if (now - this.debugStats.lastSummaryTime >= 1000) {
       const f = this.debugStats.frames || 1
@@ -446,12 +456,12 @@ export class Renderer {
       const avgUpload = this.debugStats.uploadMs / f
       const avgDraw = this.debugStats.drawMs / f
       const avgBytes = this.debugStats.bytesUploaded / f
-      
+
       // eslint-disable-next-line no-console
       console.log(
         `[Renderer Σ1s] N=${f} avg(pack=${avgPack.toFixed(2)}ms, upload=${avgUpload.toFixed(2)}ms, draw=${avgDraw.toFixed(2)}ms) avgBytes=${(avgBytes / 1e6).toFixed(3)}MB type=${this.textureType} twoTex=${this.twoTextures} grid=${simW}x${simH}`
       )
-      
+
       this.debugStats.lastSummaryTime = now
       this.debugStats.frames =
         this.debugStats.packMs =
@@ -618,7 +628,17 @@ export class Renderer {
         this.needPotInit = false
       }
       this.frameCounter++
-      this._logRenderingPerformance(t0, t1, t2, t3, t4, pixelCount, uploads, simW, simH)
+      this._logRenderingPerformance(
+        t0,
+        t1,
+        t2,
+        t3,
+        t4,
+        pixelCount,
+        uploads,
+        simW,
+        simH
+      )
     } else {
       // float/half path: store ψ directly in rg; potential normalized in b (single texture) or separate texture
       const psi = state.psi
@@ -693,7 +713,17 @@ export class Renderer {
         this.needPotInit = false
       }
       this.frameCounter++
-      this._logRenderingPerformance(t0, t1, t2, t3, t4, pixelCount, uploads, simW, simH)
+      this._logRenderingPerformance(
+        t0,
+        t1,
+        t2,
+        t3,
+        t4,
+        pixelCount,
+        uploads,
+        simW,
+        simH
+      )
     }
   }
 }
