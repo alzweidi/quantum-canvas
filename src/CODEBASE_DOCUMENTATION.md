@@ -158,8 +158,8 @@ this.params = {
   sigma: C.INITIAL_SIGMA,
   dt: C.INITIAL_DT,
   brightness: 1.0,
-  boundaryMode: 'reflective', // 'reflective', 'absorbing', 'both'
-  barrierEnergy: 300 // energy unit - now stored as energy rather than phase
+  boundaryMode: "reflective", // 'reflective', 'absorbing', 'both'
+  barrierEnergy: 300, // energy unit - now stored as energy rather than phase
 };
 
 // Additional state properties:
@@ -177,8 +177,8 @@ the state manages two primary types of boundary conditions, controlled by [`para
 ```javascript
 // From _applyAbsorbingBoundaries(factor = 1.0)
 if (
-  this.params.boundaryMode === 'absorbing' ||
-  this.params.boundaryMode === 'both'
+  this.params.boundaryMode === "absorbing" ||
+  this.params.boundaryMode === "both"
 ) {
   // ...
   if (minDist < boundaryWidth) {
@@ -263,8 +263,9 @@ if (this.uint8Mode) {
       if (ai > S) S = ai;
     }
     // smooth scaling to prevent flickering
-    const smoothed = this.scaleSmoothAlpha * this.currentScale + 
-                    (1.0 - this.scaleSmoothAlpha) * S;
+    const smoothed =
+      this.scaleSmoothAlpha * this.currentScale +
+      (1.0 - this.scaleSmoothAlpha) * S;
     this.currentScale = Math.max(smoothed, S);
   }
 }
