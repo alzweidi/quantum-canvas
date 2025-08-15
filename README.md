@@ -152,7 +152,7 @@ contributions are very welcome! any help to make it better is greatly appreciate
 
 ---
 
-_Built with determination by Abedalaziz Alzweidi_
+_Built with determination by Alzweidi_
 
 ## Genesis Art Pieces
 
