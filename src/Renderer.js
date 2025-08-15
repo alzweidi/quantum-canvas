@@ -406,6 +406,17 @@ export class Renderer {
   }
 
   /**
+   * normalise potential value to [0,1] range for GPU texture upload
+   * @param {number} potentialValue - raw potential energy value
+   * @param {number} invMax - inverse of maximum potential energy (1/barrierEnergy)
+   * @returns {number} normalised value in [0,1] range
+   * @private
+   */
+  _normalizePotential (potentialValue, invMax) {
+    return Math.max(0, Math.min(1, potentialValue * invMax))
+  }
+
+  /**
    * log rendering performance stats (debug mode only)
    * @param {number} t0 - pack start time
    * @param {number} t1 - pack end / upload start time
@@ -527,7 +538,7 @@ export class Renderer {
         if (this.twoTextures) {
           // leave B unused; A=255
         } else if (potDirty) {
-          const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+          const v01 = this._normalizePotential(V[p], invMax)
           out[o + 2] = (v01 * 255) | 0 // B = normalised potential
         }
         out[o + 3] = 255 // A
@@ -561,7 +572,7 @@ export class Renderer {
           out[o] = (r01 * 255) | 0
           out[o + 1] = (i01 * 255) | 0
           if (!this.twoTextures && potDirty) {
-            const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+            const v01 = this._normalizePotential(V[p], invMax)
             out[o + 2] = (v01 * 255) | 0
           }
           out[o + 3] = 255
@@ -577,7 +588,7 @@ export class Renderer {
         const pout = this.potU8
         let qo = 0
         for (let i = 0; i < state.potential.length; i++) {
-          const v01 = Math.max(0, Math.min(1, state.potential[i] * invMax))
+          const v01 = this._normalizePotential(state.potential[i], invMax)
           const b = (v01 * 255) | 0
           pout[qo++] = b // R
           pout[qo++] = 0 // G
@@ -642,7 +653,7 @@ export class Renderer {
           out[o] = psi[t]
           out[o + 1] = psi[t + 1]
           if (potDirty) {
-            const v01 = Math.max(0, Math.min(1, V[p] * invMax))
+            const v01 = this._normalizePotential(V[p], invMax)
             out[o + 2] = v01 // B = normalised potential
           }
           out[o + 3] = 1.0
@@ -656,7 +667,7 @@ export class Renderer {
         const pout = this.potF32
         let qo = 0
         for (let i = 0; i < state.potential.length; i++) {
-          pout[qo++] = Math.max(0, Math.min(1, state.potential[i] * invMax))
+          pout[qo++] = this._normalizePotential(state.potential[i], invMax)
           pout[qo++] = 0.0
           pout[qo++] = 0.0
           pout[qo++] = 1.0
