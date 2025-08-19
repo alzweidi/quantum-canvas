@@ -48,6 +48,8 @@ const RENDERER_TWO_TEXTURES = flagBool(
 )
 // enable half-float path when float32 unavailable
 const ENABLE_HALF_FLOAT = flagBool('halfFloat', 'qc.renderer.halfFloat', true)
+// enable perceptual colormap instead of HSV
+const ENABLE_PERCEPTUAL_COLORMAP = flagBool('perceptualColormap', 'qc.renderer.perceptualColormap', false)
 // uint8 scale scan cadence and smoothing
 const UINT8_SCALE_EVERY_N = flagNum('u8n', 'qc.renderer.u8n', 4)
 const UINT8_SCALE_SMOOTH_ALPHA = flagNum('u8alpha', 'qc.renderer.u8alpha', 0.5)
@@ -96,7 +98,8 @@ export class Renderer {
           'OES_texture_float',
           'OES_texture_float_linear',
           'OES_texture_half_float',
-          'OES_texture_half_float_linear'
+          'OES_texture_half_float_linear',
+          'OES_standard_derivatives'
         ]
     this.regl = window.createREGL({ gl, extensions: extList })
 
@@ -125,6 +128,29 @@ export class Renderer {
 
     // last computed global scale (uint8 mode only)
     this.currentScale = 1.0
+
+    // perceptual colormap LUT texture
+    // always create the LUT (its 256×1 RGBA8 = 1 KB) so the sampler is valid even if unused
+    const lutSize = 256
+    const lutData = new Uint8Array(lutSize * 4)
+    // balanced cyclic map (approx perceptual): phase-shifted sines
+    for (let i = 0; i < lutSize; i++) {
+      const t = i / (lutSize - 1);
+      const r = 0.5 + 0.5 * Math.sin(2 * Math.PI * (t + 0.00));
+      const g = 0.5 + 0.5 * Math.sin(2 * Math.PI * (t + 0.33));
+      const b = 0.5 + 0.5 * Math.sin(2 * Math.PI * (t + 0.6));
+      lutData[i*4+0] = Math.round(r * 255);
+      lutData[i*4+1] = Math.round(g * 255);
+      lutData[i*4+2] = Math.round(b * 255);
+      lutData[i*4+3] = 255;
+    }
+    this.perceptualColormapLUT = this.regl.texture({
+      width: lutSize,
+      height: 1,
+      format: 'rgba',
+      type: 'uint8',
+      data: lutData
+    })
 
     // path/flag configuration
     this.twoTextures = RENDERER_TWO_TEXTURES
@@ -289,18 +315,35 @@ export class Renderer {
     const frag = this.twoTextures
       ? `
       precision ${precision} float;
+      precision mediump int;
+      #ifdef GL_ES
+      #ifdef GL_OES_standard_derivatives
+      #extension GL_OES_standard_derivatives : enable
+      #endif
+      #endif
       varying vec2 vUv;
 
       uniform sampler2D psiTexture;
       uniform sampler2D potentialTexture;
+      uniform sampler2D u_perceptualColormap; // perceptual colormap LUT
+      uniform float u_usePerceptualColormap;  // 1.0 => use perceptual colormap, 0.0 => HSV
 
       uniform float u_brightness;
       uniform float u_magCutoff;
       uniform float u_scale;     // uint8 mode only (global amplitude scale)
-      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
+      uniform float u_uint8Mode; // 1.0 => uint8+scale, 0.0 => float/half
+      uniform float u_potentialOpacity; // potential overlay opacity (0.0 to 1.0)
 
       const float PI = 3.141592653589793;
       const float TAU = 6.283185307179586;
+      
+      // returns 0..15 mapped to 4x4 Bayer pattern, normalised to [0,1]
+      float bayer4(vec2 p){
+        vec2 a = mod(p, 2.0);
+        vec2 b = mod(floor(p * 0.5), 2.0);
+        // (a.x + a.y*2 + b.x*4 + b.y*8) / 16
+        return (a.x + a.y * 2.0 + b.x * 4.0 + b.y * 8.0) / 16.0;
+      }
 
       vec3 hsv2rgb(vec3 c) {
         vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
@@ -309,7 +352,7 @@ export class Renderer {
 
       void main() {
         vec4 t = texture2D(psiTexture, vUv);
-        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+        vec2 psi = (u_uint8Mode > 0.5) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
 
         float mag = length(psi);
         if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
@@ -317,33 +360,73 @@ export class Renderer {
         float phase = atan(psi.y, psi.x);
         float hue   = fract((phase + PI) / TAU);
         float amp   = sqrt(mag) * u_brightness;
-        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+        
+        // use perceptual colormap if enabled, otherwise use HSV
+        vec3 base;
+        if (u_usePerceptualColormap > 0.5) {
+          vec3 lutColor = texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb;
+          base = lutColor * amp;
+        } else {
+          base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+        }
 
-        float K = 24.0;
-        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
-        float contour = smoothstep(0.48, 0.5, f);
-        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+        // contour anti-aliasing with fwidth
+        float stripes = ((phase + PI) / TAU) * 24.0;         // 24 lines per 2π (tune)
+        float df = fwidth(stripes);                           // needs OES_standard_derivatives on WebGL1
+        float band = abs(fract(stripes) - 0.5);
+        float contour = smoothstep(0.48 - df, 0.48 + df, band); // thin, AA lines
+        base = mix(base, base * 0.7, 0.25 * contour * clamp(amp, 0.0, 1.0));
 
         float pot = texture2D(potentialTexture, vUv).r;
-        float potAlpha = 0.6 * pot * pot;
-        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        // convert normalised potential to signed value (-1 to 1)
+        float signedPot = (pot - 0.5) * 2.0;
+        // create blue↔red color map
+        vec3 barrier = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), smoothstep(-1.0, 1.0, signedPot));
+        // apply potential overlay with adjustable opacity
+        float potAlpha = u_potentialOpacity * pot * pot;
         vec3 color = mix(base, barrier, potAlpha);
+        
+        // apply dithering in uint8 mode
+        if (u_uint8Mode > 0.5) {
+          float dither = bayer4(gl_FragCoord.xy);
+          color = color + (dither - 0.5) / 256.0;
+        }
+        
+        // apply gamma correction
+        color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
         gl_FragColor = vec4(color, 1.0);
       }
     `
       : `
       precision ${precision} float;
+      precision mediump int;
+      #ifdef GL_ES
+      #ifdef GL_OES_standard_derivatives
+      #extension GL_OES_standard_derivatives : enable
+      #endif
+      #endif
       varying vec2 vUv;
 
       uniform sampler2D psiTexture;
+      uniform sampler2D u_perceptualColormap; // perceptual colormap LUT
+      uniform float u_usePerceptualColormap;  // 1.0 => use perceptual colormap, 0.0 => HSV
 
       uniform float u_brightness;
       uniform float u_magCutoff;
       uniform float u_scale;     // uint8 mode only (global amplitude scale)
-      uniform int   u_uint8Mode; // 1 => uint8+scale, 0 => float/half
+      uniform float u_uint8Mode; // 1.0 => uint8+scale, 0.0 => float/half
+      uniform float u_potentialOpacity; // potential overlay opacity (0.0 to 1.0)
 
       const float PI = 3.141592653589793;
       const float TAU = 6.283185307179586;
+      
+      // returns 0..15 mapped to 4x4 Bayer pattern, normalised to [0,1]
+      float bayer4(vec2 p){
+        vec2 a = mod(p, 2.0);
+        vec2 b = mod(floor(p * 0.5), 2.0);
+        // (a.x + a.y*2 + b.x*4 + b.y*8) / 16
+        return (a.x + a.y * 2.0 + b.x * 4.0 + b.y * 8.0) / 16.0;
+      }
 
       vec3 hsv2rgb(vec3 c) {
         vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
@@ -352,7 +435,7 @@ export class Renderer {
 
       void main() {
         vec4 t = texture2D(psiTexture, vUv);
-        vec2 psi = (u_uint8Mode == 1) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+        vec2 psi = (u_uint8Mode > 0.5) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
 
         float mag = length(psi);
         if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
@@ -360,18 +443,41 @@ export class Renderer {
         float phase = atan(psi.y, psi.x);
         float hue   = fract((phase + PI) / TAU);
         float amp   = sqrt(mag) * u_brightness;
-        vec3 base   = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+        
+        // use perceptual colormap if enabled, otherwise use HSV
+        vec3 base;
+        if (u_usePerceptualColormap > 0.5) {
+          vec3 lutColor = texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb;
+          base = lutColor * amp;
+        } else {
+          base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+        }
 
-        float K = 24.0;
-        float f = abs(fract((phase + PI) / TAU * K) - 0.5);
-        float contour = smoothstep(0.48, 0.5, f);
-        base = mix(base, base * 0.7, contour * 0.25 * clamp(amp, 0.0, 1.0));
+        // contour anti-aliasing with fwidth
+        float stripes = ((phase + PI) / TAU) * 24.0;         // 24 lines per 2π (tune)
+        float df = fwidth(stripes);                           // needs OES_standard_derivatives on WebGL1
+        float band = abs(fract(stripes) - 0.5);
+        float contour = smoothstep(0.48 - df, 0.48 + df, band); // thin, AA lines
+        base = mix(base, base * 0.7, 0.25 * contour * clamp(amp, 0.0, 1.0));
 
-        // Potential overlay from B channel (normalized 0..1 in t.b)
+        // potential overlay from B channel (normalised 0..1 in t.b)
         float pot = t.b;
-        float potAlpha = 0.6 * pot * pot;
-        vec3 barrier = vec3(0.85, 0.15, 0.15);
+        // convert normalised potential to signed value (-1 to 1)
+        float signedPot = (pot - 0.5) * 2.0;
+        // create blue↔red color map
+        vec3 barrier = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), smoothstep(-1.0, 1.0, signedPot));
+        // apply potential overlay with adjustable opacity
+        float potAlpha = u_potentialOpacity * pot * pot;
         vec3 color = mix(base, barrier, potAlpha);
+        
+        // apply dithering in uint8 mode
+        if (u_uint8Mode > 0.5) {
+          float dither = bayer4(gl_FragCoord.xy);
+          color = color + (dither - 0.5) / 256.0;
+        }
+        
+        // apply gamma correction
+        color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
         gl_FragColor = vec4(color, 1.0);
       }
     `
@@ -381,7 +487,10 @@ export class Renderer {
       u_brightness: this.regl.prop('brightness'),
       u_magCutoff: this.regl.prop('magCutoff'),
       u_scale: this.regl.prop('uScale'),
-      u_uint8Mode: this.regl.prop('uint8Mode')
+      u_uint8Mode: this.regl.prop('uint8Mode'),
+      u_perceptualColormap: this.perceptualColormapLUT,
+      u_usePerceptualColormap: this.regl.prop('usePerceptual'),
+      u_potentialOpacity: this.regl.prop('potentialOpacity')
     }
     if (this.twoTextures) {
       uniforms.potentialTexture = this.regl.prop('pot')
@@ -414,6 +523,37 @@ export class Renderer {
    */
   _normalizePotential (potentialValue, invMax) {
     return Math.max(0, Math.min(1, potentialValue * invMax))
+  }
+
+  /**
+   * convert HSV to RGB
+   * @param {number} h - hue in degrees (0-360)
+   * @param {number} s - saturation (0-1)
+   * @param {number} v - value (0-1)
+   * @returns {Array<number>} RGB values in range [0,1]
+   * @private
+   */
+  _hsvToRgb (h, s, v) {
+    h = h % 360
+    if (h < 0) h += 360
+    const c = v * s
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1))
+    const m = v - c
+    let r, g, b
+    if (h < 60) {
+      r = c; g = x; b = 0
+    } else if (h < 120) {
+      r = x; g = c; b = 0
+    } else if (h < 180) {
+      r = 0; g = c; b = x
+    } else if (h < 240) {
+      r = 0; g = x; b = c
+    } else if (h < 300) {
+      r = x; g = 0; b = c
+    } else {
+      r = c; g = 0; b = x
+    }
+    return [r + m, g + m, b + m]
   }
 
   /**
@@ -618,7 +758,13 @@ export class Renderer {
             ? state.visual.magCutoff
             : 0.0,
         uScale: this.currentScale,
-        uint8Mode: 1
+        uint8Mode: 1,
+        usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
+        potentialOpacity:
+          Number.isFinite(state.visual?.potentialOpacity) &&
+          state.visual.potentialOpacity >= 0
+            ? state.visual.potentialOpacity
+            : 0.6
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
 
@@ -694,7 +840,13 @@ export class Renderer {
             ? state.visual.magCutoff
             : 0.0,
         uScale: 1.0,
-        uint8Mode: 0
+        uint8Mode: 0,
+        usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
+        potentialOpacity:
+          Number.isFinite(state.visual?.potentialOpacity) &&
+          state.visual.potentialOpacity >= 0
+            ? state.visual.potentialOpacity
+            : 0.6
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
 
