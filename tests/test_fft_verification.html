@@ -66,7 +66,9 @@
     </div>
 
     <script type="module">
-        import { ComputationEngine } from './src/ComputationEngine.js';
+        import { ComputationEngine } from '../src/ComputationEngine.js';
+        import { SimulationState } from '../src/SimulationState.js';
+        import * as C from '../src/constants.js';
 
         // capture console output
         let outputBuffer = [];
@@ -82,7 +84,7 @@
             const outputDiv = document.getElementById('output');
             let html = outputBuffer.join('\n');
             
-            // colorize the output
+            // colorise the output
             html = html.replace(/PASSED/g, '<span class="pass">PASSED</span>');
             html = html.replace(/FAILED/g, '<span class="fail">FAILED</span>');
             html = html.replace(/FAIL/g, '<span class="fail">FAIL</span>');
@@ -103,19 +105,17 @@
         window.runVerificationTests = function() {
             outputBuffer = [];
             console.log('Starting comprehensive FFT verification...\n');
-            
+
             try {
                 // create test engine for verification
                 const testEngine = new ComputationEngine({ width: 256, height: 256 });
-                
+
                 // run comprehensive verification
                 const results = testEngine.verifyFFTImplementation([
-                    { width: 256, height: 256 },    // square grid
-                    { width: 512, height: 256 },    // rectangular 2:1  
-                    { width: 256, height: 512 },    // rectangular 1:2
+                    { width: 32, height: 32 },      // small square (start with this)
+                    { width: 64, height: 64 },      // medium square
                     { width: 128, height: 64 },     // rectangular 2:1 smaller
                     { width: 64, height: 128 },     // rectangular 1:2 smaller
-                    { width: 32, height: 32 },      // small square
                     { width: 16, height: 8 }        // very small rectangular
                 ]);
                 

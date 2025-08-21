@@ -38,7 +38,8 @@
     <div id="results"></div>
     
     <script type="module">
-        import { ComputationEngine } from './src/ComputationEngine.js';
+        import { ComputationEngine } from '../src/ComputationEngine.js';
+        import { SimulationState } from '../src/SimulationState.js';
         
         function log(message, className = '') {
             const resultsDiv = document.getElementById('results');
@@ -49,9 +50,9 @@
         }
         
         function runTests() {
-            log("🚀 Starting FFT Dimension Swap Bug Tests...\n");
+            log("Starting FFT Dimension Swap Bug Tests...\n");
             
-            // Test cases: square and non-square grids
+            // test cases: square and non-square grids
             const testCases = [
                 { width: 64, height: 64, description: "Square grid (control)" },
                 { width: 128, height: 64, description: "Rectangular grid (suspect)" },
@@ -67,45 +68,51 @@
                 log(`\n--- Test ${index + 1}: ${testCase.description} (${testCase.width}x${testCase.height}) ---`);
                 
                 try {
-                    const engine = new ComputationEngine({ 
-                        width: testCase.width, 
-                        height: testCase.height 
+                    // create a new engine for each test with the correct dimensions
+                    const engine = new ComputationEngine({
+                        width: testCase.width,
+                        height: testCase.height
                     });
-                    
-                    const passed = engine.testRoundTripAccuracy(testCase.width, testCase.height);
+
+                    // create a separate test engine with the same dimensions to run the test
+                    const testEngine = new ComputationEngine({
+                        width: testCase.width,
+                        height: testCase.height
+                    });
+
+                    const passed = testEngine.testRoundTripAccuracy(testCase.width, testCase.height);
                     
                     if (passed) {
                         passedTests++;
-                        log(`✅ Test ${index + 1}: PASSED`, 'passed');
+                        log(`Test ${index + 1}: PASSED`, 'passed');
                     } else {
-                        log(`❌ Test ${index + 1}: FAILED - Dimension swap detected!`, 'failed');
+                        log(`Test ${index + 1}: FAILED - Dimension swap detected!`, 'failed');
                     }
                     
                 } catch (error) {
-                    log(`💥 Test ${index + 1}: ERROR - ${error.message}`, 'failed');
+                    log(`Test ${index + 1}: ERROR - ${error.message}`, 'failed');
                 }
             });
             
-            log(`\n🏁 TEST SUMMARY: ${passedTests}/${totalTests} tests passed`);
+            log(`\nTEST SUMMARY: ${passedTests}/${totalTests} tests passed`);
             
             if (passedTests < totalTests) {
-                log(`\n🐛 BUG CONFIRMED: Dimension swap risk exists in non-square grids!`, 'failed');
-                log(`\n📋 DIAGNOSIS: The asymmetric iteration patterns in _fft2D() and _ifft2D() 
-cause dimension swap issues for rectangular grids. The forward transform uses 
-height-then-width passes while inverse uses width-then-height passes.`, 'failed');
+                log(`\nBUG CONFIRMED: Round-trip accuracy issues exist!`, 'failed');
+                log(`\nDIAGNOSIS: FFT/IFFT round-trip test failed with high relative errors.
+This indicates numerical precision issues or implementation errors in the FFT routines.`, 'failed');
             } else {
-                log(`\n✨ All tests passed - no dimension swap detected.`, 'passed');
+                log(`\nAll tests passed - no accuracy issues detected.`, 'passed');
             }
         }
         
-        // Override console.log to capture our debug output
+        // override console.log to capture our debug output
         const originalLog = console.log;
         console.log = function(...args) {
             log(args.join(' '));
             originalLog.apply(console, args);
         };
         
-        // Run tests when page loads
+        // run tests when page loads
         window.addEventListener('load', runTests);
     </script>
 </body>
