@@ -1,7 +1,7 @@
 // renderer.js — physically faithful renderer for the quantum wave function
 // - uses uint8 RGBA textures for wave function representation (lossless phase, correct amplitude).
 // - textures are sized to the canvas backing store dimensions, accounting for device pixel ratio (DPR), for correct rendering on high-DPI displays.
-// - no per-pixel normalization: preserves |ψ| and phase so interference looks right.
+// - no per-per-pixel normalization: preserves |ψ| and phase so interference looks right.
 
 const DEBUG =
   new URLSearchParams(location.search).has('debug') ||
@@ -170,6 +170,11 @@ export class Renderer {
           ? 8
           : 4
 
+    // display auto-exposure (frame-adaptive)
+    this.displayGain = 1.0        // updated every frame
+    this.gainSmoothAlpha = 0.9    // 0..1 (higher = slower changes)
+    this.targetLuma = 0.35        // aim average |psi|^2 to ~35% before tone-map
+
     // instrumentation accumulators (debug only)
     this.debugStats = {
       lastSummaryTime:
@@ -310,177 +315,207 @@ export class Renderer {
       }
     `
 
-    // domain-coloring: hue = phase, brightness ~ sqrt(|ψ|)
-    // uint8 fallback reconstructs ψ via uniform u_scale (global).
-    const frag = this.twoTextures
-      ? `
-      precision ${precision} float;
-      precision mediump int;
-      #ifdef GL_ES
-      #ifdef GL_OES_standard_derivatives
-      #extension GL_OES_standard_derivatives : enable
-      #endif
-      #endif
-      varying vec2 vUv;
+    // Shared helper chunk used by both fragment variants
+    const helpers = `
+      // Helper functions at global scope (GLSL ES requires this)
+      vec2 recFromTex(vec4 t){
+        return (u_uint8Mode > 0.5)
+          ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12)
+          : t.rg;
+      }
 
-      uniform sampler2D psiTexture;
-      uniform sampler2D potentialTexture;
-      uniform sampler2D u_perceptualColormap; // perceptual colormap LUT
-      uniform float u_usePerceptualColormap;  // 1.0 => use perceptual colormap, 0.0 => HSV
-
-      uniform float u_brightness;
-      uniform float u_magCutoff;
-      uniform float u_scale;     // uint8 mode only (global amplitude scale)
-      uniform float u_uint8Mode; // 1.0 => uint8+scale, 0.0 => float/half
-      uniform float u_potentialOpacity; // potential overlay opacity (0.0 to 1.0)
+      // Signed angle between two 2D unit vectors
+      float ang(vec2 a, vec2 b){
+        return atan(a.x*b.y - a.y*b.x, dot(a,b));
+      }
 
       const float PI = 3.141592653589793;
       const float TAU = 6.283185307179586;
-      
-      // returns 0..15 mapped to 4x4 Bayer pattern, normalised to [0,1]
+
+      // 4x4 Bayer dither
       float bayer4(vec2 p){
         vec2 a = mod(p, 2.0);
         vec2 b = mod(floor(p * 0.5), 2.0);
-        // (a.x + a.y*2 + b.x*4 + b.y*8) / 16
-        return (a.x + a.y * 2.0 + b.x * 4.0 + b.y * 8.0) / 16.0;
+        return (a.x + a.y*2.0 + b.x*4.0 + b.y*8.0) / 16.0;
       }
 
       vec3 hsv2rgb(vec3 c) {
         vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
         return c.z * mix(vec3(1.0), rgb, c.y);
       }
+    `
 
+    const commonHeader = `
+      precision ${precision} float;
+      precision mediump int;
+      #ifdef GL_ES
+      #extension GL_OES_standard_derivatives : enable
+      #endif
+      varying vec2 vUv;
+
+      uniform sampler2D psiTexture;
+      uniform sampler2D u_perceptualColormap;
+      uniform float u_usePerceptualColormap;
+
+      uniform float u_brightness;
+      uniform float u_magCutoff;
+      uniform float u_scale;     // uint8 mode only
+      uniform float u_uint8Mode; // 1.0 => uint8 path, 0.0 => float/half path
+      uniform float u_potentialOpacity;
+      uniform float u_enableDithering; // 1.0 => dithering on, 0.0 => off
+      uniform float u_useLinearIntensity; // 1 => |psi|^2, 0 => legacy sqrt(|psi|)
+      uniform float u_displayGain; // frame-adaptive exposure gain
+      uniform float u_contourStrength; // 0..1 (default ~0.1)
+      uniform float u_densityOnly; // 1.0 => grayscale density, 0.0 => domain coloring
+
+      // Vortex highlight uniforms
+      uniform vec2  u_texel;
+      uniform float u_vortexOpacity;
+      uniform float u_vortexAmpThreshold;
+
+      ${helpers}
+    `
+
+    const fragSingle = `
+      ${commonHeader}
       void main() {
-        vec4 t = texture2D(psiTexture, vUv);
-        vec2 psi = (u_uint8Mode > 0.5) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
+        vec4 t   = texture2D(psiTexture, vUv);
+        vec2 psi = recFromTex(t);
 
-        float mag = length(psi);
-        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
+        float mag2 = dot(psi, psi); // |psi|^2
+        if (mag2 < u_magCutoff*u_magCutoff) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
 
         float phase = atan(psi.y, psi.x);
         float hue   = fract((phase + PI) / TAU);
-        float amp   = sqrt(mag) * u_brightness;
-        
-        // use perceptual colormap if enabled, otherwise use HSV
-        vec3 base;
-        if (u_usePerceptualColormap > 0.5) {
-          vec3 lutColor = texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb;
-          base = lutColor * amp;
-        } else {
-          base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
+        // physics-faithful intensity with auto-exposure and gentle tone map
+        float amp = (u_useLinearIntensity > 0.5 ? mag2 : sqrt(mag2)) * u_brightness;
+
+        // exposure (frame-adaptive)
+        amp *= u_displayGain;
+
+        // Reinhard tonemap (smoothly compress highlights)
+        amp = amp / (1.0 + amp);
+
+        vec3 basePhase = (u_usePerceptualColormap > 0.5)
+          ? texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb
+          : hsv2rgb(vec3(hue, 1.0, 1.0));
+        vec3 base = (u_densityOnly > 0.5)
+          ? vec3(amp)                               // grayscale density
+          : basePhase * amp;                        // domain coloring
+
+        // AA phase contours with configurable strength
+        float stripes = ((phase + PI) / TAU) * 24.0;
+        float df = fwidth(stripes);
+        float band = abs(fract(stripes) - 0.5);
+        float contour = smoothstep(0.48 - df, 0.48 + df, band);
+        base = mix(base, base * (1.0 - 0.3 * u_contourStrength),
+                   0.25 * u_contourStrength * clamp(amp, 0.0, 1.0));
+
+        // Potential overlay from B channel (0..1) - gentler approach
+        float pot = t.b;
+        float signedPot = (pot - 0.5) * 2.0;
+        vec3 barrier = mix(vec3(0.10), vec3(0.85), smoothstep(-1.0, 1.0, signedPot));
+        float potAlpha = u_potentialOpacity * pot;      // linear, not pot*pot
+        vec3 color = mix(base, barrier, potAlpha);
+
+        // Vortex detection (no nested functions)
+        vec2 o = 0.5 * u_texel;
+        vec2 p00 = recFromTex(texture2D(psiTexture, vUv + vec2(-o.x, -o.y)));
+        vec2 p10 = recFromTex(texture2D(psiTexture, vUv + vec2(+o.x, -o.y)));
+        vec2 p11 = recFromTex(texture2D(psiTexture, vUv + vec2(+o.x, +o.y)));
+        vec2 p01 = recFromTex(texture2D(psiTexture, vUv + vec2(-o.x, +o.y)));
+
+        vec2 u00 = p00 / (length(p00) + 1e-9);
+        vec2 u10 = p10 / (length(p10) + 1e-9);
+        vec2 u11 = p11 / (length(p11) + 1e-9);
+        vec2 u01 = p01 / (length(p01) + 1e-9);
+
+        float w = ang(u00,u10) + ang(u10,u11) + ang(u11,u01) + ang(u01,u00);
+        float avgAmp = 0.25 * (length(p00)+length(p10)+length(p11)+length(p01));
+        float vortexCore = smoothstep(3.14159, 5.5, abs(w));
+        float lowAmp = 1.0 - smoothstep(u_vortexAmpThreshold, u_vortexAmpThreshold*3.0, avgAmp);
+        float vortex = vortexCore * lowAmp;
+        color = mix(color, vec3(1.0), clamp(u_vortexOpacity * vortex, 0.0, 1.0));
+
+        if (u_uint8Mode > 0.5 && u_enableDithering > 0.5) {
+          float dither = bayer4(gl_FragCoord.xy);
+          color += (dither - 0.5) / 256.0;
         }
 
-        // contour anti-aliasing with fwidth
-        float stripes = ((phase + PI) / TAU) * 24.0;         // 24 lines per 2π (tune)
-        float df = fwidth(stripes);                           // needs OES_standard_derivatives on WebGL1
+        color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `
+
+    const fragTwo = `
+      ${commonHeader}
+      uniform sampler2D potentialTexture;
+      void main() {
+        vec2 psi = recFromTex(texture2D(psiTexture, vUv));
+
+        float mag2 = dot(psi, psi); // |psi|^2
+        if (mag2 < u_magCutoff*u_magCutoff) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+
+        float phase = atan(psi.y, psi.x);
+        float hue   = fract((phase + PI) / TAU);
+        // physics-faithful intensity with auto-exposure and gentle tone map
+        float amp = (u_useLinearIntensity > 0.5 ? mag2 : sqrt(mag2)) * u_brightness;
+
+        // exposure (frame-adaptive)
+        amp *= u_displayGain;
+
+        // Reinhard tonemap (smoothly compress highlights)
+        amp = amp / (1.0 + amp);
+
+        vec3 basePhase = (u_usePerceptualColormap > 0.5)
+          ? texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb
+          : hsv2rgb(vec3(hue, 1.0, 1.0));
+        vec3 base = (u_densityOnly > 0.5)
+          ? vec3(amp)                               // grayscale density
+          : basePhase * amp;                        // domain coloring
+
+        float stripes = ((phase + PI) / TAU) * 24.0;
+        float df = fwidth(stripes);
         float band = abs(fract(stripes) - 0.5);
-        float contour = smoothstep(0.48 - df, 0.48 + df, band); // thin, AA lines
-        base = mix(base, base * 0.7, 0.25 * contour * clamp(amp, 0.0, 1.0));
+        float contour = smoothstep(0.48 - df, 0.48 + df, band);
+        base = mix(base, base * (1.0 - 0.3 * u_contourStrength),
+                   0.25 * u_contourStrength * clamp(amp, 0.0, 1.0));
 
         float pot = texture2D(potentialTexture, vUv).r;
-        // convert normalised potential to signed value (-1 to 1)
         float signedPot = (pot - 0.5) * 2.0;
-        // create blue↔red color map
-        vec3 barrier = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), smoothstep(-1.0, 1.0, signedPot));
-        // apply potential overlay with adjustable opacity
-        float potAlpha = u_potentialOpacity * pot * pot;
+        vec3 barrier = mix(vec3(0.10), vec3(0.85), smoothstep(-1.0, 1.0, signedPot));
+        float potAlpha = u_potentialOpacity * pot;      // linear, not pot*pot
         vec3 color = mix(base, barrier, potAlpha);
-        
-        // apply dithering in uint8 mode
-        if (u_uint8Mode > 0.5) {
+
+        vec2 o = 0.5 * u_texel;
+        vec2 p00 = recFromTex(texture2D(psiTexture, vUv + vec2(-o.x, -o.y)));
+        vec2 p10 = recFromTex(texture2D(psiTexture, vUv + vec2(+o.x, -o.y)));
+        vec2 p11 = recFromTex(texture2D(psiTexture, vUv + vec2(+o.x, +o.y)));
+        vec2 p01 = recFromTex(texture2D(psiTexture, vUv + vec2(-o.x, +o.y)));
+
+        vec2 u00 = p00 / (length(p00) + 1e-9);
+        vec2 u10 = p10 / (length(p10) + 1e-9);
+        vec2 u11 = p11 / (length(p11) + 1e-9);
+        vec2 u01 = p01 / (length(p01) + 1e-9);
+
+        float w = ang(u00,u10) + ang(u10,u11) + ang(u11,u01) + ang(u01,u00);
+        float avgAmp = 0.25 * (length(p00)+length(p10)+length(p11)+length(p01));
+        float vortexCore = smoothstep(3.14159, 5.5, abs(w));
+        float lowAmp = 1.0 - smoothstep(u_vortexAmpThreshold, u_vortexAmpThreshold*3.0, avgAmp);
+        float vortex = vortexCore * lowAmp;
+        color = mix(color, vec3(1.0), clamp(u_vortexOpacity * vortex, 0.0, 1.0));
+
+        if (u_uint8Mode > 0.5 && u_enableDithering > 0.5) {
           float dither = bayer4(gl_FragCoord.xy);
-          color = color + (dither - 0.5) / 256.0;
+          color += (dither - 0.5) / 256.0;
         }
-        
-        // apply gamma correction
+
         color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
         gl_FragColor = vec4(color, 1.0);
       }
     `
-      : `
-      precision ${precision} float;
-      precision mediump int;
-      #ifdef GL_ES
-      #ifdef GL_OES_standard_derivatives
-      #extension GL_OES_standard_derivatives : enable
-      #endif
-      #endif
-      varying vec2 vUv;
 
-      uniform sampler2D psiTexture;
-      uniform sampler2D u_perceptualColormap; // perceptual colormap LUT
-      uniform float u_usePerceptualColormap;  // 1.0 => use perceptual colormap, 0.0 => HSV
-
-      uniform float u_brightness;
-      uniform float u_magCutoff;
-      uniform float u_scale;     // uint8 mode only (global amplitude scale)
-      uniform float u_uint8Mode; // 1.0 => uint8+scale, 0.0 => float/half
-      uniform float u_potentialOpacity; // potential overlay opacity (0.0 to 1.0)
-
-      const float PI = 3.141592653589793;
-      const float TAU = 6.283185307179586;
-      
-      // returns 0..15 mapped to 4x4 Bayer pattern, normalised to [0,1]
-      float bayer4(vec2 p){
-        vec2 a = mod(p, 2.0);
-        vec2 b = mod(floor(p * 0.5), 2.0);
-        // (a.x + a.y*2 + b.x*4 + b.y*8) / 16
-        return (a.x + a.y * 2.0 + b.x * 4.0 + b.y * 8.0) / 16.0;
-      }
-
-      vec3 hsv2rgb(vec3 c) {
-        vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-        return c.z * mix(vec3(1.0), rgb, c.y);
-      }
-
-      void main() {
-        vec4 t = texture2D(psiTexture, vUv);
-        vec2 psi = (u_uint8Mode > 0.5) ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12) : t.rg;
-
-        float mag = length(psi);
-        if (mag < u_magCutoff) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
-
-        float phase = atan(psi.y, psi.x);
-        float hue   = fract((phase + PI) / TAU);
-        float amp   = sqrt(mag) * u_brightness;
-        
-        // use perceptual colormap if enabled, otherwise use HSV
-        vec3 base;
-        if (u_usePerceptualColormap > 0.5) {
-          vec3 lutColor = texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb;
-          base = lutColor * amp;
-        } else {
-          base = hsv2rgb(vec3(hue, 1.0, 1.0)) * amp;
-        }
-
-        // contour anti-aliasing with fwidth
-        float stripes = ((phase + PI) / TAU) * 24.0;         // 24 lines per 2π (tune)
-        float df = fwidth(stripes);                           // needs OES_standard_derivatives on WebGL1
-        float band = abs(fract(stripes) - 0.5);
-        float contour = smoothstep(0.48 - df, 0.48 + df, band); // thin, AA lines
-        base = mix(base, base * 0.7, 0.25 * contour * clamp(amp, 0.0, 1.0));
-
-        // potential overlay from B channel (normalised 0..1 in t.b)
-        float pot = t.b;
-        // convert normalised potential to signed value (-1 to 1)
-        float signedPot = (pot - 0.5) * 2.0;
-        // create blue↔red color map
-        vec3 barrier = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), smoothstep(-1.0, 1.0, signedPot));
-        // apply potential overlay with adjustable opacity
-        float potAlpha = u_potentialOpacity * pot * pot;
-        vec3 color = mix(base, barrier, potAlpha);
-        
-        // apply dithering in uint8 mode
-        if (u_uint8Mode > 0.5) {
-          float dither = bayer4(gl_FragCoord.xy);
-          color = color + (dither - 0.5) / 256.0;
-        }
-        
-        // apply gamma correction
-        color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `
+    const frag = this.twoTextures ? fragTwo : fragSingle
 
     const uniforms = {
       psiTexture: this.regl.prop('psi'),
@@ -490,7 +525,16 @@ export class Renderer {
       u_uint8Mode: this.regl.prop('uint8Mode'),
       u_perceptualColormap: this.perceptualColormapLUT,
       u_usePerceptualColormap: this.regl.prop('usePerceptual'),
-      u_potentialOpacity: this.regl.prop('potentialOpacity')
+      u_potentialOpacity: this.regl.prop('potentialOpacity'),
+      u_useLinearIntensity: this.regl.prop('useLinearIntensity'),
+      u_contourStrength: this.regl.prop('contourStrength'),
+      u_densityOnly: this.regl.prop('densityOnly'),
+      // Vortex highlight uniforms
+      u_texel: this.regl.prop('texel'),
+      u_vortexOpacity: this.regl.prop('vortexOpacity'),
+      u_vortexAmpThreshold: this.regl.prop('vortexAmpThreshold'),
+      u_enableDithering: this.regl.prop('enableDithering'),
+      u_displayGain: this.regl.prop('displayGain')
     }
     if (this.twoTextures) {
       uniforms.potentialTexture = this.regl.prop('pot')
@@ -618,6 +662,9 @@ export class Renderer {
    * @param {SimulationState} state
    */
   draw (state) {
+    if (DEBUG) {
+      console.log('[Renderer] draw() called');
+    }
     const simW = state.gridSize.width
     const simH = state.gridSize.height
     this._ensureTextures(simW, simH)
@@ -662,14 +709,21 @@ export class Renderer {
       }
 
       // pack pass with clip detection; optionally write B if potDirty
+      let sumMag2 = 0.0
+      let logSum = 0.0
       let o = 0
       let t = 0
       let p = 0
       let clipped = false
       const Suse = this.currentScale
       for (let px = 0; px < pixelCount; px++, t += 2, o += 4, p += 1) {
-        const r = psi[t] / Suse
-        const im = psi[t + 1] / Suse
+        const rr = psi[t]
+        const ii = psi[t + 1]
+        const mag2 = rr*rr + ii*ii
+        sumMag2 += mag2
+        logSum += Math.log(1e-12 + mag2)
+        const r = rr / Suse
+        const im = ii / Suse
         if (r > 1.0 || r < -1.0 || im > 1.0 || im < -1.0) clipped = true
         const r01 = Math.max(0, Math.min(1, r * 0.5 + 0.5))
         const i01 = Math.max(0, Math.min(1, im * 0.5 + 0.5))
@@ -719,6 +773,14 @@ export class Renderer {
         }
       }
 
+      // Log-average + "key" target (photographic standard)
+      const oneOverN = 1.0 / Math.max(1, pixelCount)
+      const logAvg = Math.exp(logSum * oneOverN)  // log-average |psi|^2
+      const key = 0.18                            // "middle gray" scene key
+      const newGain = key / Math.max(1e-12, logAvg)
+      this.displayGain = this.gainSmoothAlpha * this.displayGain
+                       + (1.0 - this.gainSmoothAlpha) * newGain
+
       const t1 = typeof performance !== 'undefined' ? performance.now() : 0
       this.psiTexture.subimage({ data: out, width: simW, height: simH })
       let uploads = 1
@@ -756,17 +818,44 @@ export class Renderer {
           Number.isFinite(state.visual?.magCutoff) &&
           state.visual.magCutoff >= 0
             ? state.visual.magCutoff
-            : 0.0,
+            : 1e-4,
         uScale: this.currentScale,
-        uint8Mode: 1,
+        uint8Mode: this.uint8Mode ? 1 : 0,
         usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
+        useLinearIntensity: 1.0,
+        displayGain: this.displayGain,
         potentialOpacity:
           Number.isFinite(state.visual?.potentialOpacity) &&
           state.visual.potentialOpacity >= 0
             ? state.visual.potentialOpacity
-            : 0.6
+            : 0.15,
+        contourStrength:
+          Number.isFinite(state.visual?.contourStrength) &&
+          state.visual.contourStrength >= 0 &&
+          state.visual.contourStrength <= 1
+            ? state.visual.contourStrength
+            : 0.1,
+        densityOnly:
+          state.visual?.densityOnly === true ? 1.0 : 0.0,
+        // Vortex parameters
+        texel: [1.0 / simW, 1.0 / simH],
+        vortexOpacity:
+          Number.isFinite(state.visual?.vortexOpacity) &&
+          state.visual.vortexOpacity >= 0
+            ? state.visual.vortexOpacity
+            : 0.0,
+        vortexAmpThreshold:
+          Number.isFinite(state.visual?.vortexAmpThreshold) &&
+          state.visual.vortexAmpThreshold > 0
+            ? state.visual.vortexAmpThreshold
+            : 0.02,
+        enableDithering: 0.0 // Default: dithering off
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      if (DEBUG) {
+        console.log('[Renderer] Draw command executed successfully');
+      }
 
       // update versions and stats
       if (!this.twoTextures && potDirty) {
@@ -782,22 +871,34 @@ export class Renderer {
       const out = this.psiF32
       const V = state.potential
 
+      let sumMag2 = 0.0
+      let logSum = 0.0
       let o = 0
       let t = 0
       let p = 0
       if (this.twoTextures) {
         // single pass for ψ only; potential packed separately below
         for (let px = 0; px < pixelCount; px++, t += 2, o += 4) {
-          out[o] = psi[t] // R = re
-          out[o + 1] = psi[t + 1] // G = im
+          const rr = psi[t]
+          const ii = psi[t + 1]
+          const mag2 = rr*rr + ii*ii
+          sumMag2 += mag2
+          logSum += Math.log(1e-12 + mag2)
+          out[o] = rr // R = re
+          out[o + 1] = ii // G = im
           // leave B unchanged
           out[o + 3] = 1.0 // A
         }
       } else {
         // single pass: pack ψ and, if needed, potential into B
         for (let px = 0; px < pixelCount; px++, t += 2, p += 1, o += 4) {
-          out[o] = psi[t]
-          out[o + 1] = psi[t + 1]
+          const rr = psi[t]
+          const ii = psi[t + 1]
+          const mag2 = rr*rr + ii*ii
+          sumMag2 += mag2
+          logSum += Math.log(1e-12 + mag2)
+          out[o] = rr
+          out[o + 1] = ii
           if (potDirty) {
             const v01 = this._normalizePotential(V[p], invMax)
             out[o + 2] = v01 // B = normalised potential
@@ -805,6 +906,14 @@ export class Renderer {
           out[o + 3] = 1.0
         }
       }
+
+      // Log-average + "key" target (photographic standard)
+      const oneOverN = 1.0 / Math.max(1, pixelCount)
+      const logAvg = Math.exp(logSum * oneOverN)  // log-average |psi|^2
+      const key = 0.18                            // "middle gray" scene key
+      const newGain = key / Math.max(1e-12, logAvg)
+      this.displayGain = this.gainSmoothAlpha * this.displayGain
+                       + (1.0 - this.gainSmoothAlpha) * newGain
 
       const t1 = typeof performance !== 'undefined' ? performance.now() : 0
       this.psiTexture.subimage({ data: out, width: simW, height: simH })
@@ -838,17 +947,44 @@ export class Renderer {
           Number.isFinite(state.visual?.magCutoff) &&
           state.visual.magCutoff >= 0
             ? state.visual.magCutoff
-            : 0.0,
+            : 1e-4,
         uScale: 1.0,
-        uint8Mode: 0,
+        uint8Mode: this.uint8Mode ? 1 : 0,
         usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
+        useLinearIntensity: 1.0,
+        displayGain: this.displayGain,
         potentialOpacity:
           Number.isFinite(state.visual?.potentialOpacity) &&
           state.visual.potentialOpacity >= 0
             ? state.visual.potentialOpacity
-            : 0.6
+            : 0.15,
+        contourStrength:
+          Number.isFinite(state.visual?.contourStrength) &&
+          state.visual.contourStrength >= 0 &&
+          state.visual.contourStrength <= 1
+            ? state.visual.contourStrength
+            : 0.1,
+        densityOnly:
+          state.visual?.densityOnly === true ? 1.0 : 0.0,
+        // Vortex parameters
+        texel: [1.0 / simW, 1.0 / simH],
+        vortexOpacity:
+          Number.isFinite(state.visual?.vortexOpacity) &&
+          state.visual.vortexOpacity >= 0
+            ? state.visual.vortexOpacity
+            : 0.0,
+        vortexAmpThreshold:
+          Number.isFinite(state.visual?.vortexAmpThreshold) &&
+          state.visual.vortexAmpThreshold > 0
+            ? state.visual.vortexAmpThreshold
+            : 0.02,
+        enableDithering: 0.0 // Default: dithering off
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
+
+      if (DEBUG) {
+        console.log('[Renderer] Draw command executed successfully (float/half path)');
+      }
 
       if (!this.twoTextures && potDirty) {
         this.lastPotentialVersion = state.potentialVersion
