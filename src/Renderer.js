@@ -1,7 +1,7 @@
 // renderer.js — physically faithful renderer for the quantum wave function
 // - uses uint8 RGBA textures for wave function representation (lossless phase, correct amplitude).
 // - textures are sized to the canvas backing store dimensions, accounting for device pixel ratio (DPR), for correct rendering on high-DPI displays.
-// - no per-per-pixel normalization: preserves |ψ| and phase so interference looks right.
+// - no per-per-pixel normalisation: preserves |ψ| and phase so interference looks right.
 
 const DEBUG =
   new URLSearchParams(location.search).has('debug') ||
@@ -57,20 +57,46 @@ const UINT8_SCALE_SMOOTH_ALPHA = flagNum('u8alpha', 'qc.renderer.u8alpha', 0.5)
 export class Renderer {
   /**
    * @param {HTMLCanvasElement} canvasElement
+   * @param {Object} options - Rendering options
    */
-  constructor (canvasElement) {
+  constructor (canvasElement, options = {}) {
     this.canvas = canvasElement
+    this.options = {
+      renderMode: options.renderMode || 'enhanced', // 'enhanced' or 'legacy'
+      quality: options.quality || 'auto',
+      enableSSAO: options.enableSSAO !== false,
+      enablePBR: options.enablePBR !== false,
+      enableVolumetrics: options.enableVolumetrics !== false,
+      enableMultipass: false, // default off until multipass is fully wired
+      toneMapping: options.toneMapping || 'aces', // 'aces', 'reinhard', 'uncharted2', 'photographic'
+      ...options
+    }
 
     // ---- GL context (prefer WebGL2) ----
     const gl2 =
-      canvasElement.getContext('webgl2', { alpha: false, antialias: false }) ||
+      canvasElement.getContext('webgl2', {
+        alpha: false,
+        antialias: false,
+        depth: true,
+        stencil: false,
+        preserveDrawingBuffer: false
+      }) ||
       null
     const gl =
       gl2 ||
-      canvasElement.getContext('webgl', { alpha: false, antialias: false }) ||
+      canvasElement.getContext('webgl', {
+        alpha: false,
+        antialias: false,
+        depth: true,
+        stencil: false,
+        preserveDrawingBuffer: false
+      }) ||
       canvasElement.getContext('experimental-webgl', {
         alpha: false,
-        antialias: false
+        antialias: false,
+        depth: true,
+        stencil: false,
+        preserveDrawingBuffer: false
       })
     if (!gl) throw new Error('WebGL not available')
 
@@ -90,6 +116,17 @@ export class Renderer {
       this.isWebGL2 || !!gl.getExtension('OES_texture_half_float')
     this.supportsHalfFloatLinear =
       this.isWebGL2 || !!gl.getExtension('OES_texture_half_float_linear')
+    
+    // check for WebGL2 specific features
+    this.supportsMRT = this.isWebGL2 || !!gl.getExtension('WEBGL_draw_buffers')
+    this.supportsDepthTexture = this.isWebGL2 || !!gl.getExtension('WEBGL_depth_texture')
+    this.supportsFloatBlend = this.isWebGL2 || !!gl.getExtension('EXT_float_blend')
+    
+    // max texture units for multi-pass rendering
+    this.maxTextureUnits = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS)
+    this.maxColorAttachments = this.isWebGL2
+      ? gl.getParameter(gl.MAX_COLOR_ATTACHMENTS)
+      : (this.supportsMRT ? gl.getExtension('WEBGL_draw_buffers').MAX_COLOR_ATTACHMENTS_WEBGL : 1)
 
     // create regl on our context (ask for extensions explicitly in webgl1)
     const extList = this.isWebGL2
@@ -99,7 +136,10 @@ export class Renderer {
           'OES_texture_float_linear',
           'OES_texture_half_float',
           'OES_texture_half_float_linear',
-          'OES_standard_derivatives'
+          'OES_standard_derivatives',
+          'WEBGL_draw_buffers',
+          'WEBGL_depth_texture',
+          'EXT_float_blend'
         ]
     this.regl = window.createREGL({ gl, extensions: extList })
 
@@ -152,6 +192,34 @@ export class Renderer {
       data: lutData
     })
 
+    // 3D LUT for color grading - create a default identity LUT
+    this.lutSize = 32 // 32x32x32 3D LUT
+    this.colorGradingLUT = this._createIdentityLUT3D()
+    
+    // framebuffer objects for multi-pass rendering
+    this.framebuffers = {}
+    this.renderTargets = {}
+    
+    // SSAO resources
+    this.ssaoKernel = null
+    this.ssaoNoise = null
+    if (this.options.enableSSAO && this.options.renderMode === 'enhanced') {
+      this._initSSAO()
+    }
+    
+    // PBR resources
+    this.brdfLUT = null
+    this.envMaps = {}
+    if (this.options.enablePBR && this.options.renderMode === 'enhanced') {
+      this._initPBR()
+    }
+    
+    // volumetric rendering resources
+    this.volumetricBuffer = null
+    if (this.options.enableVolumetrics && this.options.renderMode === 'enhanced') {
+      this._initVolumetrics()
+    }
+    
     // path/flag configuration
     this.twoTextures = RENDERER_TWO_TEXTURES
     this.uint8ScaleEveryN = Math.max(1, UINT8_SCALE_EVERY_N | 0)
@@ -174,6 +242,11 @@ export class Renderer {
     this.displayGain = 1.0        // updated every frame
     this.gainSmoothAlpha = 0.9    // 0..1 (higher = slower changes)
     this.targetLuma = 0.35        // aim average |psi|^2 to ~35% before tone-map
+    
+    // exposure control for tone mapping
+    this.exposure = 1.0
+    this.exposureAdaptation = true
+    this.adaptationSpeed = 0.5
 
     // instrumentation accumulators (debug only)
     this.debugStats = {
@@ -186,14 +259,220 @@ export class Renderer {
       bytesUploaded: 0
     }
 
-    // build draw command
-    this.drawCommand = this._makeDrawCommand()
+    // build draw commands (multiple for enhanced mode)
+    if (this.options.renderMode === 'enhanced' && this.options.enableMultipass) {
+      this._initMultipassPipeline()
+    } else {
+      this.drawCommand = this._makeDrawCommand()
+    }
 
     if (DEBUG) {
       console.log(
-        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | type=${this.textureType} | float32=${this.supportsFloat32Tex} | half=${this.supportsHalfFloatTex} | linear(float=${this.supportsFloatLinear}, half=${this.supportsHalfFloatLinear}) | mode=${this.uint8Mode ? 'UINT8+scale' : this.textureType === 'half float' ? 'HALF' : 'FLOAT'} | twoTex=${this.twoTextures}`
+        `[Renderer] WebGL${this.isWebGL2 ? '2' : '1'} | highp=${this.hasHighp} | type=${this.textureType} | float32=${this.supportsFloat32Tex} | half=${this.supportsHalfFloatTex} | linear(float=${this.supportsFloatLinear}, half=${this.supportsHalfFloatLinear}) | mode=${this.uint8Mode ? 'UINT8+scale' : this.textureType === 'half float' ? 'HALF' : 'FLOAT'} | twoTex=${this.twoTextures} | renderMode=${this.options.renderMode} | MRT=${this.supportsMRT}`
       )
     }
+  }
+  
+  /**
+   * initialise multi-pass rendering pipeline
+   * @private
+   */
+  _initMultipassPipeline() {
+    // create framebuffers for deferred rendering
+    this._createGBuffer()
+    
+    // create render passes
+    this.geometryPass = this._makeGeometryPass()
+    this.lightingPass = this._makeLightingPass()
+    this.ssaoPass = this.options.enableSSAO ? this._makeSSAOPass() : null
+    this.postProcessPass = this._makePostProcessPass()
+    this.compositePass = this._makeCompositePass()
+    
+    // assign a draw command until multipass is fully wired
+    this.drawCommand = this.compositePass || this.geometryPass
+  }
+  
+  /**
+   * create G-Buffer for deferred rendering
+   * @private
+   */
+  _createGBuffer() {
+    if (!this.supportsMRT) {
+      // fallback to forward rendering if MRT not supported
+      this.drawCommand = this._makeDrawCommand()
+      return
+    }
+    
+    const width = this.canvas.width
+    const height = this.canvas.height
+    
+    // G-Buffer textures
+    this.gBuffer = {
+      // Albedo + metallic
+      albedo: this.regl.texture({
+        width, height,
+        format: 'rgba',
+        type: this.textureType === 'uint8' ? 'uint8' : 'float',
+        mag: 'nearest',
+        min: 'nearest'
+      }),
+      // normal + roughness
+      normal: this.regl.texture({
+        width, height,
+        format: 'rgba',
+        type: this.textureType === 'uint8' ? 'uint8' : 'float',
+        mag: 'nearest',
+        min: 'nearest'
+      }),
+      // position or depth
+      position: this.supportsDepthTexture ? this.regl.texture({
+        width, height,
+        format: 'depth',
+        type: 'depth',
+        mag: 'nearest',
+        min: 'nearest'
+      }) : this.regl.texture({
+        width, height,
+        format: 'rgba',
+        type: this.textureType === 'uint8' ? 'uint8' : 'float',
+        mag: 'nearest',
+        min: 'nearest'
+      })
+    }
+    
+    // create framebuffer
+    this.gBufferFBO = this.regl.framebuffer({
+      color: [this.gBuffer.albedo, this.gBuffer.normal],
+      depth: this.supportsDepthTexture ? this.gBuffer.position : true
+    })
+  }
+  
+  /**
+   * initialise SSAO resources
+   * @private
+   */
+  _initSSAO() {
+    // generate sampling kernel
+    const kernelSize = 64
+    const kernel = new Float32Array(kernelSize * 3)
+    for (let i = 0; i < kernelSize; i++) {
+      const sample = [
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random()
+      ]
+      // normalize and scale
+      const scale = i / kernelSize
+      const scaleFactor = 0.1 + 0.9 * scale * scale // more samples closer to origin
+      kernel[i * 3] = sample[0] * scaleFactor
+      kernel[i * 3 + 1] = sample[1] * scaleFactor
+      kernel[i * 3 + 2] = sample[2] * scaleFactor
+    }
+    this.ssaoKernel = kernel
+    
+    // generate noise texture for randomisation
+    const noiseSize = 4
+    const noise = new Float32Array(noiseSize * noiseSize * 3)
+    for (let i = 0; i < noiseSize * noiseSize; i++) {
+      noise[i * 3] = Math.random() * 2 - 1
+      noise[i * 3 + 1] = Math.random() * 2 - 1
+      noise[i * 3 + 2] = 0
+    }
+    this.ssaoNoise = this.regl.texture({
+      width: noiseSize,
+      height: noiseSize,
+      format: 'rgb',
+      type: 'float',
+      data: noise,
+      wrap: 'repeat'
+    })
+  }
+  
+  /**
+   * initialise PBR resources
+   * @private
+   */
+  _initPBR() {
+    // create BRDF lookup texture for IBL
+    const brdfSize = 256
+    const brdfData = new Float32Array(brdfSize * brdfSize * 4)
+    
+    // generate BRDF LUT (simplified - in production would precompute)
+    for (let y = 0; y < brdfSize; y++) {
+      for (let x = 0; x < brdfSize; x++) {
+        const NdotV = x / (brdfSize - 1)
+        const roughness = y / (brdfSize - 1)
+        const idx = (y * brdfSize + x) * 4
+        
+        // simplified BRDF integration
+        const scale = 1.0 - Math.pow(1.0 - NdotV, 5.0)
+        const bias = roughness * roughness
+        
+        brdfData[idx] = scale
+        brdfData[idx + 1] = bias
+        brdfData[idx + 2] = 0
+        brdfData[idx + 3] = 1
+      }
+    }
+    
+    this.brdfLUT = this.regl.texture({
+      width: brdfSize,
+      height: brdfSize,
+      format: 'rgba',
+      type: 'float',
+      data: brdfData
+    })
+  }
+  
+  /**
+   * initialise volumetric rendering
+   * @private
+   */
+  _initVolumetrics() {
+    // create 3D texture for volumetric data if WebGL2
+    if (this.isWebGL2) {
+      const size = 64
+      this.volumetricBuffer = this.regl.texture({
+        width: size,
+        height: size,
+        depth: size,
+        format: 'rgba',
+        type: 'float',
+        wrap: 'clamp'
+      })
+    }
+  }
+  
+  /**
+   * create identity 3D LUT for color grading
+   * @private
+   */
+  _createIdentityLUT3D() {
+    const size = this.lutSize
+    const data = new Float32Array(size * size * size * 4)
+    
+    for (let b = 0; b < size; b++) {
+      for (let g = 0; g < size; g++) {
+        for (let r = 0; r < size; r++) {
+          const idx = ((b * size + g) * size + r) * 4
+          data[idx] = r / (size - 1)
+          data[idx + 1] = g / (size - 1)
+          data[idx + 2] = b / (size - 1)
+          data[idx + 3] = 1
+        }
+      }
+    }
+    
+    // store as 2D texture (size*size, size) for WebGL1 compatibility
+    return this.regl.texture({
+      width: size * size,
+      height: size,
+      format: 'rgba',
+      type: 'float',
+      data: data,
+      mag: 'linear',
+      min: 'linear'
+    })
   }
 
   // create / update textures and staging buffers for a given grid size
@@ -302,6 +581,128 @@ export class Renderer {
     }
   }
 
+  /**
+   * get tone mapping function based on selected operator
+   * @private
+   */
+  _getToneMappingFunction(operator) {
+    switch(operator) {
+      case 'aces':
+        return `
+          vec3 ACESFilm(vec3 x) {
+            float a = 2.51;
+            float b = 0.03;
+            float c = 2.43;
+            float d = 0.59;
+            float e = 0.14;
+            return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+          }
+        `
+      case 'reinhard':
+        return `
+          vec3 ReinhardExtended(vec3 color, float whitePoint) {
+            vec3 numerator = color * (1.0 + (color / (whitePoint * whitePoint)));
+            return numerator / (1.0 + color);
+          }
+        `
+      case 'uncharted2':
+        return `
+          vec3 Uncharted2Tonemap(vec3 x) {
+            float A = 0.15;
+            float B = 0.50;
+            float C = 0.10;
+            float D = 0.20;
+            float E = 0.02;
+            float F = 0.30;
+            return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+          }
+        `
+      case 'photographic':
+        return `
+          vec3 Photographic(vec3 color, float exposure) {
+            return vec3(1.0) - exp(-color * exposure);
+          }
+        `
+      default:
+        return `
+          vec3 SimpleTonemap(vec3 color) {
+            return color / (1.0 + color); // Simple Reinhard
+          }
+        `
+    }
+  }
+
+  /**
+   * get Cook-Torrance BRDF implementation
+   * @private
+   */
+  _getCookTorranceBRDF() {
+    return `
+      // GGX/Trowbridge-Reitz normal distribution
+      float DistributionGGX(vec3 N, vec3 H, float roughness) {
+        float a = roughness * roughness;
+        float a2 = a * a;
+        float NdotH = max(dot(N, H), 0.0);
+        float NdotH2 = NdotH * NdotH;
+        
+        float denom = NdotH2 * (a2 - 1.0) + 1.0;
+        denom = PI * denom * denom;
+        
+        return a2 / denom;
+      }
+      
+      // geometry function (Smith's method)
+      float GeometrySchlickGGX(float NdotV, float roughness) {
+        float r = (roughness + 1.0);
+        float k = (r * r) / 8.0;
+        
+        float denom = NdotV * (1.0 - k) + k;
+        return NdotV / denom;
+      }
+      
+      float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+        float NdotV = max(dot(N, V), 0.0);
+        float NdotL = max(dot(N, L), 0.0);
+        float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+        float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+        
+        return ggx1 * ggx2;
+      }
+      
+      // Fresnel equation (Schlick approximation)
+      vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+        return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+      }
+      
+      // Cook-Torrance BRDF
+      vec3 CookTorranceBRDF(vec3 albedo, float metallic, float roughness, vec3 N, vec3 V, vec3 L, vec3 lightColor) {
+        vec3 H = normalize(V + L);
+        
+        // Calculate F0 (base reflectivity)
+        vec3 F0 = vec3(0.04);
+        F0 = mix(F0, albedo, metallic);
+        
+        // Calculate BRDF components
+        float NDF = DistributionGGX(N, H, roughness);
+        float G = GeometrySmith(N, V, L, roughness);
+        vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+        
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
+        
+        float NdotL = max(dot(N, L), 0.0);
+        float NdotV = max(dot(N, V), 0.0);
+        
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * NdotV * NdotL + 0.001;
+        vec3 specular = numerator / denominator;
+        
+        return (kD * albedo / PI + specular) * lightColor * NdotL;
+      }
+    `
+  }
+
   _makeDrawCommand () {
     const precision = this.hasHighp ? 'highp' : 'mediump'
 
@@ -309,22 +710,26 @@ export class Renderer {
       precision ${precision} float;
       attribute vec2 position;
       varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
       void main() {
         vUv = 0.5 * position + 0.5;
+        vWorldPos = vec3(vUv, 0.0);   // screen-space proxy
+        vNormal = vec3(0.0, 0.0, 1.0); // pointing towards viewer
         gl_Position = vec4(position, 0.0, 1.0);
       }
     `
 
-    // Shared helper chunk used by both fragment variants
+    // shared helper chunk used by both fragment variants
     const helpers = `
-      // Helper functions at global scope (GLSL ES requires this)
+      // helper functions at global scope (GLSL ES requires this)
       vec2 recFromTex(vec4 t){
         return (u_uint8Mode > 0.5)
           ? (t.rg * 2.0 - 1.0) * max(u_scale, 1e-12)
           : t.rg;
       }
 
-      // Signed angle between two 2D unit vectors
+      // signed angle between two 2D unit vectors
       float ang(vec2 a, vec2 b){
         return atan(a.x*b.y - a.y*b.x, dot(a,b));
       }
@@ -344,6 +749,14 @@ export class Renderer {
         return c.z * mix(vec3(1.0), rgb, c.y);
       }
     `
+    
+    // add tone mapping functions
+    const toneMappingFunctions = this._getToneMappingFunction(this.options.toneMapping)
+    
+    // add PBR functions if enabled
+    const pbrFunctions = this.options.enablePBR && this.options.renderMode === 'enhanced'
+      ? this._getCookTorranceBRDF()
+      : ''
 
     const commonHeader = `
       precision ${precision} float;
@@ -352,28 +765,68 @@ export class Renderer {
       #extension GL_OES_standard_derivatives : enable
       #endif
       varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
 
       uniform sampler2D psiTexture;
       uniform sampler2D u_perceptualColormap;
+      uniform sampler2D u_colorGradingLUT;
+      uniform sampler2D u_brdfLUT;
       uniform float u_usePerceptualColormap;
+      uniform float u_useLUT;
 
-      uniform float u_brightness;
       uniform float u_magCutoff;
       uniform float u_scale;     // uint8 mode only
       uniform float u_uint8Mode; // 1.0 => uint8 path, 0.0 => float/half path
       uniform float u_potentialOpacity;
       uniform float u_enableDithering; // 1.0 => dithering on, 0.0 => off
       uniform float u_useLinearIntensity; // 1 => |psi|^2, 0 => legacy sqrt(|psi|)
+      uniform float u_legacyLook; // 1.0 => old visual mapping
       uniform float u_displayGain; // frame-adaptive exposure gain
       uniform float u_contourStrength; // 0..1 (default ~0.1)
       uniform float u_densityOnly; // 1.0 => grayscale density, 0.0 => domain coloring
+      
+      // enhanced rendering uniforms
+      uniform float u_exposure;
+      uniform float u_whitePoint;
+      uniform float u_metallic;
+      uniform float u_roughness;
+      uniform vec3 u_lightDir;
+      uniform vec3 u_lightColor;
+      uniform vec3 u_viewPos;
 
-      // Vortex highlight uniforms
+      // vortex highlight uniforms
       uniform vec2  u_texel;
       uniform float u_vortexOpacity;
       uniform float u_vortexAmpThreshold;
 
       ${helpers}
+      ${toneMappingFunctions}
+      ${pbrFunctions}
+      
+      // 3D LUT sampling
+      vec3 sampleLUT3D(sampler2D lut, vec3 color, float lutSize) {
+        color = clamp(color, 0.0, 1.0);
+        
+        float blueSlice = color.b * (lutSize - 1.0);
+        float blueSlice0 = floor(blueSlice);
+        float blueSlice1 = min(blueSlice0 + 1.0, lutSize - 1.0);
+        float blueMix = blueSlice - blueSlice0;
+        
+        vec2 uv0 = vec2(
+          (blueSlice0 * lutSize + color.r * (lutSize - 1.0) + 0.5) / (lutSize * lutSize),
+          (color.g * (lutSize - 1.0) + 0.5) / lutSize
+        );
+        vec2 uv1 = vec2(
+          (blueSlice1 * lutSize + color.r * (lutSize - 1.0) + 0.5) / (lutSize * lutSize),
+          (color.g * (lutSize - 1.0) + 0.5) / lutSize
+        );
+        
+        vec3 sample0 = texture2D(lut, uv0).rgb;
+        vec3 sample1 = texture2D(lut, uv1).rgb;
+        
+        return mix(sample0, sample1, blueMix);
+      }
     `
 
     const fragSingle = `
@@ -387,14 +840,15 @@ export class Renderer {
 
         float phase = atan(psi.y, psi.x);
         float hue   = fract((phase + PI) / TAU);
-        // physics-faithful intensity with auto-exposure and gentle tone map
-        float amp = (u_useLinearIntensity > 0.5 ? mag2 : sqrt(mag2)) * u_brightness;
+        // physics-correct (|psi|^2) or legacy √|psi| look
+        float amp = (u_legacyLook > 0.5)
+          ? pow(mag2, 0.25)               // == sqrt(|psi|) from original renderer
+          : (u_useLinearIntensity > 0.5
+              ? mag2                       // |psi|^2
+              : sqrt(sqrt(mag2)));         // == sqrt(|psi|)
 
         // exposure (frame-adaptive)
-        amp *= u_displayGain;
-
-        // Reinhard tonemap (smoothly compress highlights)
-        amp = amp / (1.0 + amp);
+        amp *= u_displayGain * u_exposure;
 
         vec3 basePhase = (u_usePerceptualColormap > 0.5)
           ? texture2D(u_perceptualColormap, vec2(hue, 0.5)).rgb
@@ -402,6 +856,30 @@ export class Renderer {
         vec3 base = (u_densityOnly > 0.5)
           ? vec3(amp)                               // grayscale density
           : basePhase * amp;                        // domain coloring
+          
+        // apply PBR if enabled
+        ${this.options.enablePBR && this.options.renderMode === 'enhanced' ? `
+        if (u_metallic > 0.0 || u_roughness > 0.0) {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(u_viewPos - vWorldPos);
+          vec3 L = normalize(u_lightDir);
+          
+          base = CookTorranceBRDF(base, u_metallic, u_roughness, N, V, L, u_lightColor);
+        }
+        ` : ''}
+        
+        // apply advanced tone mapping
+        ${this.options.toneMapping === 'aces' ? `
+        base = ACESFilm(base);
+        ` : this.options.toneMapping === 'reinhard' ? `
+        base = ReinhardExtended(base, u_whitePoint);
+        ` : this.options.toneMapping === 'uncharted2' ? `
+        base = Uncharted2Tonemap(base * u_exposure) / Uncharted2Tonemap(vec3(11.2));
+        ` : this.options.toneMapping === 'photographic' ? `
+        base = Photographic(base, u_exposure);
+        ` : `
+        base = base / (1.0 + base); // Simple Reinhard
+        `}
 
         // AA phase contours with configurable strength
         float stripes = ((phase + PI) / TAU) * 24.0;
@@ -409,16 +887,16 @@ export class Renderer {
         float band = abs(fract(stripes) - 0.5);
         float contour = smoothstep(0.48 - df, 0.48 + df, band);
         base = mix(base, base * (1.0 - 0.3 * u_contourStrength),
-                   0.25 * u_contourStrength * clamp(amp, 0.0, 1.0));
+                   0.25 * u_contourStrength * contour * clamp(amp, 0.0, 1.0));
 
-        // Potential overlay from B channel (0..1) - gentler approach
+        // potential overlay from B channel (0..1) - gentler approach
         float pot = t.b;
         float signedPot = (pot - 0.5) * 2.0;
         vec3 barrier = mix(vec3(0.10), vec3(0.85), smoothstep(-1.0, 1.0, signedPot));
         float potAlpha = u_potentialOpacity * pot;      // linear, not pot*pot
         vec3 color = mix(base, barrier, potAlpha);
 
-        // Vortex detection (no nested functions)
+        // vortex detection (no nested functions)
         vec2 o = 0.5 * u_texel;
         vec2 p00 = recFromTex(texture2D(psiTexture, vUv + vec2(-o.x, -o.y)));
         vec2 p10 = recFromTex(texture2D(psiTexture, vUv + vec2(+o.x, -o.y)));
@@ -441,7 +919,13 @@ export class Renderer {
           float dither = bayer4(gl_FragCoord.xy);
           color += (dither - 0.5) / 256.0;
         }
+        
+        // apply 3D LUT color grading if enabled
+        if (u_useLUT > 0.5) {
+          color = sampleLUT3D(u_colorGradingLUT, color, 32.0);
+        }
 
+        // final gamma correction
         color = pow(clamp(color, 0.0, 1.0), vec3(1.0/2.2));
         gl_FragColor = vec4(color, 1.0);
       }
@@ -458,13 +942,17 @@ export class Renderer {
 
         float phase = atan(psi.y, psi.x);
         float hue   = fract((phase + PI) / TAU);
-        // physics-faithful intensity with auto-exposure and gentle tone map
-        float amp = (u_useLinearIntensity > 0.5 ? mag2 : sqrt(mag2)) * u_brightness;
+        // physics-correct (|psi|^2) or legacy √|psi| look
+        float amp = (u_legacyLook > 0.5)
+          ? pow(mag2, 0.25)               // == sqrt(|psi|) from original renderer
+          : (u_useLinearIntensity > 0.5
+              ? mag2                       // |psi|^2
+              : sqrt(sqrt(mag2)));         // == sqrt(|psi|)
 
         // exposure (frame-adaptive)
         amp *= u_displayGain;
 
-        // Reinhard tonemap (smoothly compress highlights)
+        // reinhard tonemap (smoothly compress highlights)
         amp = amp / (1.0 + amp);
 
         vec3 basePhase = (u_usePerceptualColormap > 0.5)
@@ -479,7 +967,7 @@ export class Renderer {
         float band = abs(fract(stripes) - 0.5);
         float contour = smoothstep(0.48 - df, 0.48 + df, band);
         base = mix(base, base * (1.0 - 0.3 * u_contourStrength),
-                   0.25 * u_contourStrength * clamp(amp, 0.0, 1.0));
+                   0.25 * u_contourStrength * contour * clamp(amp, 0.0, 1.0));
 
         float pot = texture2D(potentialTexture, vUv).r;
         float signedPot = (pot - 0.5) * 2.0;
@@ -519,17 +1007,28 @@ export class Renderer {
 
     const uniforms = {
       psiTexture: this.regl.prop('psi'),
-      u_brightness: this.regl.prop('brightness'),
       u_magCutoff: this.regl.prop('magCutoff'),
       u_scale: this.regl.prop('uScale'),
       u_uint8Mode: this.regl.prop('uint8Mode'),
       u_perceptualColormap: this.perceptualColormapLUT,
+      u_colorGradingLUT: this.colorGradingLUT,
+      u_brdfLUT: this.brdfLUT || this.perceptualColormapLUT, // fallback if not initialized
       u_usePerceptualColormap: this.regl.prop('usePerceptual'),
+      u_useLUT: this.regl.prop('useLUT'),
       u_potentialOpacity: this.regl.prop('potentialOpacity'),
       u_useLinearIntensity: this.regl.prop('useLinearIntensity'),
+      u_legacyLook: this.regl.prop('legacyLook'),
       u_contourStrength: this.regl.prop('contourStrength'),
       u_densityOnly: this.regl.prop('densityOnly'),
-      // Vortex highlight uniforms
+      // enhanced rendering uniforms
+      u_exposure: this.regl.prop('exposure'),
+      u_whitePoint: this.regl.prop('whitePoint'),
+      u_metallic: this.regl.prop('metallic'),
+      u_roughness: this.regl.prop('roughness'),
+      u_lightDir: this.regl.prop('lightDir'),
+      u_lightColor: this.regl.prop('lightColor'),
+      u_viewPos: this.regl.prop('viewPos'),
+      // vortex highlight uniforms
       u_texel: this.regl.prop('texel'),
       u_vortexOpacity: this.regl.prop('vortexOpacity'),
       u_vortexAmpThreshold: this.regl.prop('vortexAmpThreshold'),
@@ -656,6 +1155,125 @@ export class Renderer {
           0
     }
   }
+  
+  /**
+   * create SSAO pass
+   * @private
+   */
+  _makeSSAOPass() {
+    if (!this.options.enableSSAO || !this.ssaoKernel) return null
+    
+    const precision = this.hasHighp ? 'highp' : 'mediump'
+    
+    const vert = `
+      precision ${precision} float;
+      attribute vec2 position;
+      varying vec2 vUv;
+      void main() {
+        vUv = 0.5 * position + 0.5;
+        gl_Position = vec4(position, 0.0, 1.0);
+      }
+    `
+    
+    const frag = `
+      precision ${precision} float;
+      varying vec2 vUv;
+      
+      uniform sampler2D u_positionTexture;
+      uniform sampler2D u_normalTexture;
+      uniform sampler2D u_noiseTexture;
+      uniform vec3 u_kernel[64];
+      uniform mat4 u_projection;
+      uniform vec2 u_noiseScale;
+      uniform float u_radius;
+      uniform float u_bias;
+      uniform float u_intensity;
+      
+      void main() {
+        vec3 fragPos = texture2D(u_positionTexture, vUv).xyz;
+        vec3 normal = texture2D(u_normalTexture, vUv).xyz;
+        vec3 randomVec = texture2D(u_noiseTexture, vUv * u_noiseScale).xyz;
+        
+        // Create TBN matrix
+        vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
+        vec3 bitangent = cross(normal, tangent);
+        mat3 TBN = mat3(tangent, bitangent, normal);
+        
+        float occlusion = 0.0;
+        for(int i = 0; i < 64; i++) {
+          vec3 samplePos = TBN * u_kernel[i];
+          samplePos = fragPos + samplePos * u_radius;
+          
+          vec4 offset = u_projection * vec4(samplePos, 1.0);
+          offset.xyz /= offset.w;
+          offset.xyz = offset.xyz * 0.5 + 0.5;
+          
+          float sampleDepth = texture2D(u_positionTexture, offset.xy).z;
+          float rangeCheck = smoothstep(0.0, 1.0, u_radius / abs(fragPos.z - sampleDepth));
+          occlusion += (sampleDepth >= samplePos.z + u_bias ? 1.0 : 0.0) * rangeCheck;
+        }
+        
+        occlusion = 1.0 - (occlusion / 64.0) * u_intensity;
+        gl_FragColor = vec4(vec3(occlusion), 1.0);
+      }
+    `
+    
+    return this.regl({
+      vert,
+      frag,
+      attributes: {
+        position: [[-1, -1], [1, -1], [-1, 1], [-1, 1], [1, -1], [1, 1]]
+      },
+      uniforms: {
+        u_positionTexture: this.regl.prop('positionTexture'),
+        u_normalTexture: this.regl.prop('normalTexture'),
+        u_noiseTexture: this.ssaoNoise,
+        u_kernel: this.ssaoKernel,
+        u_projection: this.regl.prop('projection'),
+        u_noiseScale: this.regl.prop('noiseScale'),
+        u_radius: this.regl.prop('radius'),
+        u_bias: this.regl.prop('bias'),
+        u_intensity: this.regl.prop('intensity')
+      },
+      count: 6
+    })
+  }
+  
+  /**
+   * create geometry pass for deferred rendering
+   * @private
+   */
+  _makeGeometryPass() {
+    // simplified - would be more complex in production
+    return this._makeDrawCommand()
+  }
+  
+  /**
+   * create lighting pass
+   * @private
+   */
+  _makeLightingPass() {
+    // simplified - would implement full deferred lighting
+    return this._makeDrawCommand()
+  }
+  
+  /**
+   * create post-processing pass
+   * @private
+   */
+  _makePostProcessPass() {
+    // simplified - would implement bloom, DOF, etc.
+    return this._makeDrawCommand()
+  }
+  
+  /**
+   * create final composite pass
+   * @private
+   */
+  _makeCompositePass() {
+    // simplified - would combine all passes
+    return this._makeDrawCommand()
+  }
 
   /**
    * render the current quantum state
@@ -773,11 +1391,12 @@ export class Renderer {
         }
       }
 
-      // Log-average + "key" target (photographic standard)
+      // log-average + "key" target (photographic standard)
       const oneOverN = 1.0 / Math.max(1, pixelCount)
       const logAvg = Math.exp(logSum * oneOverN)  // log-average |psi|^2
       const key = 0.18                            // "middle gray" scene key
-      const newGain = key / Math.max(1e-12, logAvg)
+      const rawGain = key / Math.max(1e-12, logAvg)
+      const newGain = Math.max(0.1, Math.min(rawGain, 3e3))
       this.displayGain = this.gainSmoothAlpha * this.displayGain
                        + (1.0 - this.gainSmoothAlpha) * newGain
 
@@ -813,7 +1432,6 @@ export class Renderer {
       this.drawCommand({
         psi: this.psiTexture,
         pot: this.twoTextures ? this.potentialTexture : undefined,
-        brightness: state.params.brightness,
         magCutoff:
           Number.isFinite(state.visual?.magCutoff) &&
           state.visual.magCutoff >= 0
@@ -823,7 +1441,8 @@ export class Renderer {
         uint8Mode: this.uint8Mode ? 1 : 0,
         usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
         useLinearIntensity: 1.0,
-        displayGain: this.displayGain,
+        legacyLook: 1.0,
+        displayGain: this.displayGain * Math.pow(2, (state.params.brightness ?? 5) - 5),
         potentialOpacity:
           Number.isFinite(state.visual?.potentialOpacity) &&
           state.visual.potentialOpacity >= 0
@@ -837,7 +1456,7 @@ export class Renderer {
             : 0.1,
         densityOnly:
           state.visual?.densityOnly === true ? 1.0 : 0.0,
-        // Vortex parameters
+        // vortex parameters
         texel: [1.0 / simW, 1.0 / simH],
         vortexOpacity:
           Number.isFinite(state.visual?.vortexOpacity) &&
@@ -849,7 +1468,16 @@ export class Renderer {
           state.visual.vortexAmpThreshold > 0
             ? state.visual.vortexAmpThreshold
             : 0.02,
-        enableDithering: 0.0 // Default: dithering off
+        enableDithering: 0.0, // default: dithering off
+        // enhanced rendering parameters
+        exposure: this.exposure,
+        whitePoint: 2.0,
+        metallic: 0.0, // dynamic based on potential later
+        roughness: 0.3, // dynamic based on wave variance later
+        lightDir: [0.5, 0.8, 0.6],
+        lightColor: [1.0, 1.0, 1.0],
+        viewPos: [0.0, 0.0, 1.0],
+        useLUT: this.options.renderMode === 'enhanced' ? 1.0 : 0.0
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
 
@@ -907,11 +1535,12 @@ export class Renderer {
         }
       }
 
-      // Log-average + "key" target (photographic standard)
+      // log-average + "key" target (photographic standard)
       const oneOverN = 1.0 / Math.max(1, pixelCount)
       const logAvg = Math.exp(logSum * oneOverN)  // log-average |psi|^2
       const key = 0.18                            // "middle gray" scene key
-      const newGain = key / Math.max(1e-12, logAvg)
+      const rawGain = key / Math.max(1e-12, logAvg)
+      const newGain = Math.max(0.1, Math.min(rawGain, 3e3))
       this.displayGain = this.gainSmoothAlpha * this.displayGain
                        + (1.0 - this.gainSmoothAlpha) * newGain
 
@@ -942,7 +1571,6 @@ export class Renderer {
       this.drawCommand({
         psi: this.psiTexture,
         pot: this.twoTextures ? this.potentialTexture : undefined,
-        brightness: state.params.brightness,
         magCutoff:
           Number.isFinite(state.visual?.magCutoff) &&
           state.visual.magCutoff >= 0
@@ -952,7 +1580,8 @@ export class Renderer {
         uint8Mode: this.uint8Mode ? 1 : 0,
         usePerceptual: ENABLE_PERCEPTUAL_COLORMAP ? 1 : 0,
         useLinearIntensity: 1.0,
-        displayGain: this.displayGain,
+        legacyLook: 1.0,
+        displayGain: this.displayGain * Math.pow(2, (state.params.brightness ?? 5) - 5),
         potentialOpacity:
           Number.isFinite(state.visual?.potentialOpacity) &&
           state.visual.potentialOpacity >= 0
@@ -978,7 +1607,16 @@ export class Renderer {
           state.visual.vortexAmpThreshold > 0
             ? state.visual.vortexAmpThreshold
             : 0.02,
-        enableDithering: 0.0 // Default: dithering off
+        enableDithering: 0.0, // default: dithering off
+        // enhanced rendering parameters
+        exposure: this.exposure,
+        whitePoint: 2.0,
+        metallic: 0.0, // dynamic based on potential later
+        roughness: 0.3, // dynamic based on wave variance later
+        lightDir: [0.5, 0.8, 0.6],
+        lightColor: [1.0, 1.0, 1.0],
+        viewPos: [0.0, 0.0, 1.0],
+        useLUT: this.options.renderMode === 'enhanced' ? 1.0 : 0.0
       })
       const t4 = typeof performance !== 'undefined' ? performance.now() : 0
 
